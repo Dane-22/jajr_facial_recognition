@@ -142,8 +142,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
             {recentAttendance.map((attendance, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full ${getStatusColor(attendance.status)} flex items-center justify-center text-white font-bold`}>
                     {attendance.userName.charAt(0).toUpperCase()}
@@ -169,8 +168,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         <div
           className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl transform transition-all duration-300 ${
             toastType === 'success' ? 'bg-green-500' : 'bg-red-500'
-          } text-white font-medium flex items-center gap-3`}
-        >
+          } text-white font-medium flex items-center gap-3`}>
           {toastType === 'success' ? (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

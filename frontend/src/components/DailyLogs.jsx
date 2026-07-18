@@ -127,8 +127,7 @@ const DailyLogs = () => {
             id="date"
             value={selectedDate}
             onChange={handleDateChange}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"
-          />
+            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"/>
         </div>
       </div>
 
@@ -189,8 +188,7 @@ const DailyLogs = () => {
                 columns={tableColumns}
                 data={logs}
                 emptyMessage="No attendance logs found for this date"
-                emptyIcon={emptyIcon}
-              />
+                emptyIcon={emptyIcon}/>
             </div>
           )}
         </div>

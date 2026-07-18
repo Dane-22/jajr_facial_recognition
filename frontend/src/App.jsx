@@ -52,8 +52,7 @@ function MainApp() {
             <div className="flex items-center gap-4">
               <Link
                 to="/admin/login"
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors duration-200"
-              >
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors duration-200">
                 Admin Portal
               </Link>
               <div className="flex items-center gap-2">
@@ -103,8 +102,7 @@ function MainApp() {
                 <CameraFeed
                   onFaceDetected={handleFaceDetected}
                   faceMatcher={faceMatcher}
-                  isModelsLoaded={true}
-                />
+                  isModelsLoaded={true}/>
               )}
             </div>
 
@@ -139,8 +137,7 @@ function MainApp() {
           <div>
             <AttendanceCard
               systemStatus={systemStatus}
-              lastDetection={lastDetection}
-            />
+              lastDetection={lastDetection}/>
           </div>
         </div>
       </main>

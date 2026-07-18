@@ -141,12 +141,10 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
             if (videoRef.current) {
               videoRef.current.play();
             }
-          }}
-        />
+          }}/>
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full"
-        />
+          className="absolute top-0 left-0 w-full h-full"/>
         
         {/* Status indicator */}
         <div className="absolute top-4 left-4 flex items-center gap-2">

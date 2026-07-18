@@ -180,8 +180,7 @@ const RegisterFace = () => {
                 onChange={handleChange}
                 className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-black text-sm focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all duration-200"
                 placeholder="Enter full name"
-                required
-              />
+                required/>
             </div>
 
             <div className="w-full">
@@ -194,8 +193,7 @@ const RegisterFace = () => {
                 value={formData.role}
                 onChange={handleChange}
                 className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-black text-sm focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all duration-200"
-                required
-              >
+                required>
                 <option value="">Select role</option>
                 <option value="Employee">Employee</option>
                 <option value="Manager">Manager</option>
@@ -212,16 +210,14 @@ const RegisterFace = () => {
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors duration-200"
-                >
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors duration-200">
                   Start Camera
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={stopCamera}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors duration-200"
-                >
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors duration-200">
                   Stop Camera
                 </button>
               )}
@@ -239,18 +235,15 @@ const RegisterFace = () => {
                     if (videoRef.current) {
                       videoRef.current.play();
                     }
-                  }}
-                />
+                  }}/>
                 <canvas
                   ref={canvasRef}
-                  className="absolute top-0 left-0 w-full h-full"
-                />
+                  className="absolute top-0 left-0 w-full h-full"/>
                 <button
                   type="button"
                   onClick={captureFaceDescriptor}
                   disabled={isProcessing}
-                  className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md px-6 py-3 bg-white hover:bg-slate-100 disabled:bg-slate-300 disabled:cursor-not-allowed text-black font-medium rounded-lg transition-colors duration-200"
-                >
+                  className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md px-6 py-3 bg-white hover:bg-slate-100 disabled:bg-slate-300 disabled:cursor-not-allowed text-black font-medium rounded-lg transition-colors duration-200">
                   {isProcessing ? 'Processing...' : 'Capture Face'}
                 </button>
               </div>
@@ -271,8 +264,7 @@ const RegisterFace = () => {
           <button
             type="submit"
             disabled={!faceDescriptor || isProcessing}
-            className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 text-sm"
-          >
+            className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 text-sm">
             Register User
           </button>
         </form>

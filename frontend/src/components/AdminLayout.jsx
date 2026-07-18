@@ -81,8 +81,7 @@ const AdminLayout = () => {
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="p-2 rounded-lg hover:bg-slate-100 transition-colors duration-200"
-            aria-label="Open menu"
-          >
+            aria-label="Open menu">
             <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -105,8 +104,7 @@ const AdminLayout = () => {
           transform transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           md:translate-x-0 md:static md:z-auto md:h-screen
-        `}
-      >
+        `}>
         {/* Sidebar Header */}
         <div className="hidden md:flex items-center gap-3 px-6 py-5 border-b border-slate-100">
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
@@ -133,8 +131,7 @@ const AdminLayout = () => {
           <button
             onClick={() => setIsSidebarOpen(false)}
             className="p-2 rounded-lg hover:bg-slate-100 transition-colors duration-200"
-            aria-label="Close menu"
-          >
+            aria-label="Close menu">
             <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -154,8 +151,7 @@ const AdminLayout = () => {
                     ? 'bg-slate-200 text-slate-900 font-semibold border border-transparent'
                     : 'text-slate-600 hover:bg-slate-100 border border-transparent'
                 }
-              `}
-            >
+              `}>
               <span className={`w-5 h-5 ${activeTab === item.id ? 'text-slate-900' : 'text-slate-600'}`}>
                 {item.icon}
               </span>
@@ -168,8 +164,7 @@ const AdminLayout = () => {
         <div className="px-3 pb-4">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-slate-100 border border-transparent"
-          >
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-slate-100 border border-transparent">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
