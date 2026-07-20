@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -7,15 +7,89 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [loggedUsers, setLoggedUsers] = useState(new Set()); // Track users logged in current session
+  const [userLastDetected, setUserLastDetected] = useState({}); // Track last detection time per user
+  const SESSION_TIMEOUT = 10000; // 10 seconds timeout
+  const MIN_TOGGLE_MINUTES = 15; // Minimum time between IN/OUT toggles
+  
+  // useRef for immediate synchronous tracking to prevent race conditions
+  const pendingRequests = useRef(new Set()); // Track users with pending API calls
+  const debounceTimers = useRef({}); // Track debounce timers per user
+  const DEBOUNCE_DELAY = 2000; // 2 seconds debounce window
+
+  /**
+   * Speak attendance notification using Web Speech API
+   */
+  const speakAttendance = (userName, status) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(`${userName} ${status} recorded successfully`);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.warn('Speech synthesis not supported in this browser');
+    }
+  };
+
+  /**
+   * Determine attendance status based on business rules
+   * Returns null if no status change needed (prevents unnecessary API calls)
+   */
+  const determineAttendanceStatus = (lastAttendance) => {
+    if (!lastAttendance || !lastAttendance.status) {
+      // First time logging - default to IN
+      return 'IN';
+    }
+    
+    const lastTime = new Date(lastAttendance.timestamp).getTime();
+    const currentTime = Date.now();
+    const minutesSinceLast = (currentTime - lastTime) / (1000 * 60);
+    
+    // Business rule: More than MIN_TOGGLE_MINUTES since last log = allow toggle
+    if (minutesSinceLast > MIN_TOGGLE_MINUTES) {
+      // Enough time passed - toggle status
+      return lastAttendance.status === 'OUT' ? 'IN' : 'OUT';
+    } else {
+      // Not enough time - don't toggle, return null to prevent API call
+      return null;
+    }
+  };
 
   /**
    * Log attendance to backend
    */
   const logAttendance = async (userId, userName) => {
+    // Check immediately using useRef (synchronous) to prevent race conditions
+    if (pendingRequests.current.has(userId)) {
+      console.log(`Attendance request already pending for ${userName}, skipping`);
+      return;
+    }
+
+    // Add to pending requests immediately
+    pendingRequests.current.add(userId);
+
+    // Clear any existing debounce timer for this user
+    if (debounceTimers.current[userId]) {
+      clearTimeout(debounceTimers.current[userId]);
+    }
+
     try {
-      // Determine status based on last attendance (IN/OUT toggle)
-      const lastUserAttendance = recentAttendance.find(a => a.userId === userId);
-      const status = lastUserAttendance?.status === 'IN' ? 'OUT' : 'IN';
+      // Add user to logged set for session tracking
+      setLoggedUsers(prev => new Set([...prev, userId]));
+
+      // Fetch last attendance from database
+      const lastAttendanceResponse = await fetch(`${API_URL}/attendance/last/${userId}`);
+      const lastAttendance = await lastAttendanceResponse.json();
+      
+      // Determine status based on business rules
+      const status = determineAttendanceStatus(lastAttendance);
+
+      // If status is null, no change needed - skip API call
+      if (status === null) {
+        console.log(`No status change needed for ${userName} (same session), skipping`);
+        return;
+      }
 
       const response = await fetch(`${API_URL}/attendance/log`, {
         method: 'POST',
@@ -29,6 +103,12 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
       });
 
       if (!response.ok) {
+        // Remove from logged set if API call failed
+        setLoggedUsers(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(userId);
+          return newSet;
+        });
         throw new Error('Failed to log attendance');
       }
 
@@ -51,31 +131,89 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
 
+      // Speak attendance notification
+      speakAttendance(userName, status);
+
     } catch (error) {
       console.error('Error logging attendance:', error);
+      // Remove from logged set if error occurred
+      setLoggedUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
       setToastMessage('Failed to log attendance. Please try again.');
       setToastType('error');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      // Set debounce timer to remove from pending requests after delay
+      debounceTimers.current[userId] = setTimeout(() => {
+        pendingRequests.current.delete(userId);
+        delete debounceTimers.current[userId];
+      }, DEBOUNCE_DELAY);
     }
   };
 
   /**
-   * Handle face detection from camera
+   * Handle face detection from camera with session-based logging
    */
   useEffect(() => {
     if (lastDetection && lastDetection.confidence < 0.6) {
-      // Debounce to prevent multiple rapid calls for same user
-      const lastUserAttendance = recentAttendance.find(a => a.userId === lastDetection.userId);
-      const timeSinceLast = lastUserAttendance 
-        ? Date.now() - new Date(lastUserAttendance.timestamp).getTime() 
-        : Infinity;
+      const { userId, name } = lastDetection;
+      
+      // Update last detection time for this user
+      setUserLastDetected(prev => ({
+        ...prev,
+        [userId]: Date.now()
+      }));
 
-      if (timeSinceLast > 5000) { // 5 second cooldown
-        logAttendance(lastDetection.userId, lastDetection.name);
+      // Check if user is already logged in current session
+      if (loggedUsers.has(userId)) {
+        // User already logged, ignore this detection
+        return;
       }
+
+      // Log attendance for this user
+      logAttendance(userId, name);
     }
-  }, [lastDetection, recentAttendance]);
+  }, [lastDetection, loggedUsers]);
+
+  /**
+   * Cleanup logged users who haven't been detected for SESSION_TIMEOUT
+   */
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const usersToRemove = [];
+
+      // Check each logged user
+      loggedUsers.forEach(userId => {
+        const lastDetected = userLastDetected[userId];
+        if (lastDetected && now - lastDetected > SESSION_TIMEOUT) {
+          usersToRemove.push(userId);
+        }
+      });
+
+      // Remove users who haven't been detected for SESSION_TIMEOUT
+      if (usersToRemove.length > 0) {
+        setLoggedUsers(prev => {
+          const newSet = new Set(prev);
+          usersToRemove.forEach(id => newSet.delete(id));
+          return newSet;
+        });
+
+        // Also clean up last detection times
+        setUserLastDetected(prev => {
+          const newState = { ...prev };
+          usersToRemove.forEach(id => delete newState[id]);
+          return newState;
+        });
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(cleanupInterval);
+  }, [loggedUsers, userLastDetected]);
 
   /**
    * Get status color

@@ -1,0 +1,555 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import * as faceapi from 'face-api.js';
+
+const EmployeeList = () => {
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [formData, setFormData] = useState({ name: '', role: '' });
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [faceDescriptor, setFaceDescriptor] = useState(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [modelLoadingError, setModelLoadingError] = useState(false);
+  
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    fetchEmployees();
+    loadFaceApiModels();
+  }, []);
+
+  const loadFaceApiModels = async () => {
+    try {
+      console.log('Loading face-api models...');
+      const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      ]);
+      console.log('Face-api models loaded successfully');
+      setModelsLoaded(true);
+      setModelLoadingError(false);
+    } catch (error) {
+      console.error('Error loading face-api models:', error);
+      setModelLoadingError(true);
+      setError('Failed to load face recognition models. Please refresh the page and try again.');
+    }
+  };
+
+  const fetchEmployees = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('admin_token');
+      const response = await fetch('http://localhost:5000/api/employees', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEmployees(data.employees || []);
+      } else {
+        setError(data.error || 'Failed to fetch employees');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setEditingEmployee(null);
+    setFormData({ name: '', role: '' });
+    setFaceDescriptor(null);
+    setShowModal(true);
+  };
+
+  const startCamera = useCallback(async () => {
+    try {
+      console.log('Starting camera...');
+      setIsCapturing(true);
+    } catch (error) {
+      console.error('Error in startCamera:', error);
+      setError('Failed to start camera. Please try again.');
+    }
+  }, []);
+
+  // Handle camera startup after video element is mounted
+  useEffect(() => {
+    if (isCapturing && videoRef.current && !videoRef.current.srcObject) {
+      console.log('Video element mounted, starting camera stream...');
+      navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' }
+      })
+      .then(stream => {
+        console.log('Camera stream obtained:', stream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          console.log('Camera started successfully');
+        }
+      })
+      .catch(error => {
+        console.error('Error accessing webcam:', error);
+        setIsCapturing(false);
+        if (error.name === 'NotAllowedError') {
+          setError('Camera permission denied. Please allow camera access in your browser settings.');
+        } else if (error.name === 'NotFoundError') {
+          setError('No camera found. Please connect a camera and try again.');
+        } else {
+          setError('Failed to access camera: ' + error.message);
+        }
+      });
+    }
+  }, [isCapturing]);
+
+  const stopCamera = useCallback(() => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+      setIsCapturing(false);
+    }
+  }, []);
+
+  const captureFaceDescriptor = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (video.readyState !== 4) return;
+
+    try {
+      setIsProcessing(true);
+      setError('');
+
+      const displaySize = { width: video.videoWidth, height: video.videoHeight };
+      faceapi.matchDimensions(canvas, displaySize);
+
+      const detections = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (detections) {
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        
+        const drawBox = new faceapi.draw.DrawBox(resizedDetections.detection.box, {
+          label: 'Face Detected',
+          boxColor: '#00ff00',
+          lineWidth: 2
+        });
+        drawBox.draw(canvas);
+
+        setFaceDescriptor(Array.from(detections.descriptor));
+      } else {
+        setError('No face detected. Please position your face clearly in the frame.');
+      }
+    } catch (error) {
+      console.error('Error capturing face:', error);
+      setError('Failed to capture face. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
+  const handleEdit = (employee) => {
+    setEditingEmployee(employee);
+    setFormData({ name: employee.name, role: employee.role });
+    setFaceDescriptor(null);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      const response = await fetch(`http://localhost:5000/api/employees/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        setEmployees(employees.filter(emp => emp.id !== id));
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to delete employee');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection.');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // For new employees, require face descriptor
+    if (!editingEmployee && !faceDescriptor) {
+      setError('Please capture a face descriptor first for new employees');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      const url = editingEmployee 
+        ? `http://localhost:5000/api/employees/${editingEmployee.id}`
+        : 'http://localhost:5000/api/employees';
+      
+      const method = editingEmployee ? 'PUT' : 'POST';
+
+      const payload = editingEmployee 
+        ? formData 
+        : { ...formData, face_descriptor: faceDescriptor };
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (editingEmployee) {
+          setEmployees(employees.map(emp => 
+            emp.id === editingEmployee.id ? data.employee : emp
+          ));
+        } else {
+          setEmployees([data.employee, ...employees]);
+        }
+        setShowModal(false);
+        setFormData({ name: '', role: '' });
+        setFaceDescriptor(null);
+        setEditingEmployee(null);
+        stopCamera();
+      } else {
+        setError(data.error || 'Failed to save employee');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection.');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-8">
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white mb-1">Employee Management</h2>
+              <p className="text-slate-400 text-sm">Create, view, update, and delete employees</p>
+            </div>
+            <button
+              onClick={handleCreate}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Employee
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm mb-1">Total Employees</p>
+              <p className="text-3xl font-bold text-white">{employees.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center">
+              <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm mb-1">Roles</p>
+              <p className="text-3xl font-bold text-white">
+                {[...new Set(employees.map(emp => emp.role))].length}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Employees Table */}
+      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 overflow-hidden flex flex-col min-h-[30rem]">
+        <div className="p-6 border-b border-slate-700/50">
+          <h3 className="text-lg font-semibold text-white">All Employees</h3>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+              <p className="text-slate-400 font-medium">Loading employees...</p>
+            </div>
+          ) : employees.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-12 h-12 bg-slate-700/50 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <p className="text-slate-400 font-medium">No employees found</p>
+              <p className="text-slate-500 text-sm mt-1">Click "Add Employee" to create one</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto min-h-[18rem]">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-900/50">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Role
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Created At
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {employees.map((employee) => (
+                    <tr key={employee.id} className="hover:bg-slate-700/30 transition-colors duration-200">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                        #{employee.id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        {employee.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                        <span className="px-2 py-1 bg-slate-700/50 rounded-lg text-xs">
+                          {employee.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                        {formatDate(employee.created_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEdit(employee)}
+                            className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors duration-200"
+                            title="Edit">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(employee.id)}
+                            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors duration-200"
+                            title="Delete">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
+              <h3 className="text-lg font-semibold text-white">
+                {editingEmployee ? 'Edit Employee' : 'Add New Employee'}
+              </h3>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+                    placeholder="Enter employee name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="role" className="block text-sm font-medium text-slate-300 mb-2">
+                    Role
+                  </label>
+                  <input
+                    type="text"
+                    id="role"
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+                    placeholder="Enter employee role"
+                    required
+                  />
+                </div>
+              </div>
+
+              {!editingEmployee && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-white">Face Registration</h4>
+                    {!isCapturing ? (
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        disabled={!modelsLoaded || modelLoadingError}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200">
+                        {modelLoadingError ? 'Model Load Failed' : modelsLoaded ? 'Start Camera' : 'Loading Models...'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors duration-200">
+                        Stop Camera
+                      </button>
+                    )}
+                  </div>
+
+                  {modelLoadingError && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      <p className="text-red-400 text-sm">Failed to load face recognition models. Please refresh the page.</p>
+                    </div>
+                  )}
+
+                  {isCapturing && (
+                    <div className="w-full h-[300px] bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden relative">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                        onLoadedMetadata={() => {
+                          if (videoRef.current) {
+                            videoRef.current.play();
+                          }
+                        }}/>
+                      <canvas
+                        ref={canvasRef}
+                        className="absolute top-0 left-0 w-full h-full"/>
+                      <button
+                        type="button"
+                        onClick={captureFaceDescriptor}
+                        disabled={isProcessing}
+                        className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md px-6 py-3 bg-white hover:bg-slate-100 disabled:bg-slate-300 disabled:cursor-not-allowed text-black font-medium rounded-lg transition-colors duration-200">
+                        {isProcessing ? 'Processing...' : 'Capture Face'}
+                      </button>
+                    </div>
+                  )}
+
+                  {faceDescriptor && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <p className="text-green-400 text-sm font-medium">Face descriptor captured successfully</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!editingEmployee && !faceDescriptor && (
+                    <p className="text-slate-400 text-xs">* Face registration is required for new employees</p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setFormData({ name: '', role: '' });
+                    setFaceDescriptor(null);
+                    setEditingEmployee(null);
+                    stopCamera();
+                  }}
+                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-xl transition-colors duration-200">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editingEmployee && !faceDescriptor}
+                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors duration-200">
+                  {editingEmployee ? 'Update' : 'Create Employee'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default EmployeeList;

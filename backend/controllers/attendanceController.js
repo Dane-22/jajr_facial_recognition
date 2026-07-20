@@ -12,12 +12,29 @@ const logAttendance = async (req, res) => {
       return res.status(400).json({ error: 'Status must be either IN or OUT' });
     }
 
+    // Check if userId is a name (string) or numeric ID
+    let actualUserId;
+    if (isNaN(userId)) {
+      // It's a name, look up the user ID
+      const [users] = await pool.query(
+        'SELECT id FROM users WHERE name = ?',
+        [userId]
+      );
+      if (users.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      actualUserId = users[0].id;
+    } else {
+      // It's already a numeric ID
+      actualUserId = parseInt(userId);
+    }
+
     const antiSpamCheck = await pool.query(
       `SELECT * FROM attendance_logs 
        WHERE user_id = ? 
        AND status = ? 
        AND timestamp > DATE_SUB(NOW(), INTERVAL 60 SECOND)`,
-      [userId, status]
+      [actualUserId, status]
     );
 
     if (antiSpamCheck[0].length > 0) {
@@ -28,13 +45,13 @@ const logAttendance = async (req, res) => {
 
     const [result] = await pool.query(
       'INSERT INTO attendance_logs (user_id, status, timestamp) VALUES (?, ?, NOW())',
-      [userId, status]
+      [actualUserId, status]
     );
 
     res.status(201).json({
       message: 'Attendance logged successfully',
       logId: result.insertId,
-      userId,
+      userId: actualUserId,
       status
     });
   } catch (error) {
@@ -86,8 +103,53 @@ const getAllLogs = async (req, res) => {
   }
 };
 
+const getLastAttendance = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Check if userId is a name (string) or numeric ID
+    let actualUserId;
+    if (isNaN(userId)) {
+      // It's a name, look up the user ID
+      const [users] = await pool.query(
+        'SELECT id FROM users WHERE name = ?',
+        [userId]
+      );
+      if (users.length === 0) {
+        return res.json({ status: null, timestamp: null, userId: null });
+      }
+      actualUserId = users[0].id;
+    } else {
+      // It's already a numeric ID
+      actualUserId = parseInt(userId);
+    }
+
+    const [result] = await pool.query(
+      `SELECT * FROM attendance_logs 
+       WHERE user_id = ? 
+       ORDER BY timestamp DESC 
+       LIMIT 1`,
+      [actualUserId]
+    );
+
+    if (result.length === 0) {
+      return res.json({ status: null, timestamp: null, userId: actualUserId });
+    }
+
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error fetching last attendance:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   logAttendance,
   getDailyLogs,
-  getAllLogs
+  getAllLogs,
+  getLastAttendance
 };

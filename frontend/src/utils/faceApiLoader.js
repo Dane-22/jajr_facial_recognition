@@ -33,6 +33,9 @@ export const fetchRegisteredUsers = async () => {
       throw new Error('Failed to fetch users');
     }
     const users = await response.json();
+    console.log('Fetched users:', users);
+    console.log('Number of users:', users.length);
+    console.log('Users with face descriptors:', users.filter(u => u.face_descriptor || u.faceDescriptor).length);
     return users;
   } catch (error) {
     console.error('Error fetching registered users:', error);
@@ -48,14 +51,22 @@ export const fetchRegisteredUsers = async () => {
 export const createLabeledFaceDescriptors = async (users) => {
   try {
     const labeledDescriptors = users
-      .filter(user => user.faceDescriptor)
+      .filter(user => user.face_descriptor || user.faceDescriptor)
       .map(user => {
+        // Handle both snake_case and camelCase field names
+        const descriptorData = user.face_descriptor || user.faceDescriptor;
+        
         // Parse the stored face descriptor (stored as JSON array string)
-        const descriptor = JSON.parse(user.faceDescriptor);
+        const descriptor = typeof descriptorData === 'string' 
+          ? JSON.parse(descriptorData) 
+          : descriptorData;
         const float32Descriptor = new Float32Array(descriptor);
         
+        // Use user name as the label for voice announcements
+        const label = user.name || String(user._id || user.id);
+        
         return new faceapi.LabeledFaceDescriptors(
-          user._id || user.id,
+          label,
           [float32Descriptor]
         );
       });
