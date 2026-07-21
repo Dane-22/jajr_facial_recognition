@@ -91,7 +91,8 @@ const getAllLogs = async (req, res) => {
       `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, users.name, users.role
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
-       ORDER BY attendance_logs.timestamp DESC`
+       ORDER BY attendance_logs.timestamp DESC
+       LIMIT 1000`
     );
 
     res.status(200).json({

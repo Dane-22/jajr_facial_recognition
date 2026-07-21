@@ -1,0 +1,18 @@
+{
+  "name": "face-recognition-attendance-system",
+  "version": "1.0.0",
+  "description": "Face Recognition Attendance System - E2E Tests",
+  "scripts": {
+    "test": "playwright test tests/api/",
+    "test:api": "playwright test tests/api/",
+    "test:e2e": "playwright test tests/e2e/",
+    "test:all": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

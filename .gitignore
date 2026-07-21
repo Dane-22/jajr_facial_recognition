@@ -7,6 +7,7 @@ backend/node_modules/
 .env
 .env.local
 .env.production
+backend/.env
 
 # Build outputs
 dist/
@@ -38,3 +39,8 @@ Thumbs.db
 # Database
 *.sqlite
 *.db
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/

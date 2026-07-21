@@ -155,13 +155,13 @@ const RegisterFace = () => {
 
       <div className="space-y-6">
         {error && (
-          <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+          <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg" data-testid="register-error-message">
             <p className="text-slate-800 text-sm font-medium">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg">
+          <div className="mb-4 p-3 bg-slate-100 border border-slate-200 rounded-lg" data-testid="register-success-message">
             <p className="text-slate-800 text-sm font-medium">User registered successfully!</p>
           </div>
         )}
@@ -176,6 +176,7 @@ const RegisterFace = () => {
                 type="text"
                 id="name"
                 name="name"
+                data-testid="register-name-input"
                 value={formData.name}
                 onChange={handleChange}
                 className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-black text-sm focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all duration-200"
@@ -190,6 +191,7 @@ const RegisterFace = () => {
               <select
                 id="role"
                 name="role"
+                data-testid="register-role-select"
                 value={formData.role}
                 onChange={handleChange}
                 className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-black text-sm focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all duration-200"
@@ -209,6 +211,7 @@ const RegisterFace = () => {
               {!isCapturing ? (
                 <button
                   type="button"
+                  data-testid="start-camera-button"
                   onClick={startCamera}
                   className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors duration-200">
                   Start Camera
@@ -216,6 +219,7 @@ const RegisterFace = () => {
               ) : (
                 <button
                   type="button"
+                  data-testid="stop-camera-button"
                   onClick={stopCamera}
                   className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors duration-200">
                   Stop Camera
@@ -241,6 +245,7 @@ const RegisterFace = () => {
                   className="absolute top-0 left-0 w-full h-full"/>
                 <button
                   type="button"
+                  data-testid="capture-face-button"
                   onClick={captureFaceDescriptor}
                   disabled={isProcessing}
                   className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md px-6 py-3 bg-white hover:bg-slate-100 disabled:bg-slate-300 disabled:cursor-not-allowed text-black font-medium rounded-lg transition-colors duration-200">
@@ -263,6 +268,7 @@ const RegisterFace = () => {
 
           <button
             type="submit"
+            data-testid="register-submit-button"
             disabled={!faceDescriptor || isProcessing}
             className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 text-sm">
             Register User

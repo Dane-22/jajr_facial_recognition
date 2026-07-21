@@ -4,7 +4,7 @@ const pool = require('../config/db');
 const getAllEmployees = async (req, res) => {
   try {
     const [employees] = await pool.query(
-      'SELECT id, name, role, created_at FROM users ORDER BY created_at DESC'
+      'SELECT id, name, role, created_at FROM users ORDER BY created_at DESC LIMIT 1000'
     );
     res.status(200).json({ employees });
   } catch (error) {

@@ -155,6 +155,7 @@ const AdminLayout = () => {
           {navItems.map((item) => (
             <button
               key={item.id}
+              data-testid={`nav-${item.id}`}
               onClick={() => handleNavClick(item.id)}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
@@ -175,6 +176,7 @@ const AdminLayout = () => {
         {/* Logout Button */}
         <div className="px-3 pb-4">
           <button
+            data-testid="logout-button"
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-slate-100 border border-transparent">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

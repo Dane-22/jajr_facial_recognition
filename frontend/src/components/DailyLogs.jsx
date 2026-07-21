@@ -8,11 +8,14 @@ const DailyLogs = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (token) {
       fetchDailyLogs(token);
+      fetchEmployees(token);
     }
   }, []);
 
@@ -22,6 +25,22 @@ const DailyLogs = () => {
       fetchDailyLogs(token);
     }
   }, [selectedDate]);
+
+  const fetchEmployees = async (token) => {
+    try {
+      const response = await fetch(`${API_URL}/employees`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setEmployees(data.employees || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch employees:', err);
+    }
+  };
 
   const fetchDailyLogs = async (token) => {
     setLoading(true);
@@ -64,6 +83,32 @@ const DailyLogs = () => {
       minute: '2-digit',
       hour12: true
     });
+  };
+
+  // Filter logs by selected employee
+  const filteredLogs = selectedEmployee 
+    ? logs.filter(log => log.user_id === parseInt(selectedEmployee))
+    : logs;
+
+  const exportToCSV = () => {
+    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp'];
+    const rows = filteredLogs.map(log => [
+      log.id,
+      log.name,
+      log.role,
+      log.status,
+      formatTimestamp(log.timestamp)
+    ]);
+    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `attendance-${selectedDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const tableColumns = [
@@ -125,9 +170,35 @@ const DailyLogs = () => {
           <input
             type="date"
             id="date"
+            data-testid="date-filter-input"
             value={selectedDate}
             onChange={handleDateChange}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"/>
+          <label htmlFor="employee" className="text-slate-600 text-sm font-medium ml-4">
+            Employee:
+          </label>
+          <select
+            id="employee"
+            data-testid="daily-logs-employee-select"
+            value={selectedEmployee}
+            onChange={(e) => setSelectedEmployee(e.target.value)}
+            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
+            <option value="">All Employees</option>
+            {employees.map(emp => (
+              <option key={emp.id} value={emp.id}>{emp.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            data-testid="daily-logs-export-button"
+            onClick={exportToCSV}
+            disabled={filteredLogs.length === 0}
+            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export CSV
+          </button>
         </div>
       </div>
 
@@ -139,7 +210,7 @@ const DailyLogs = () => {
           </span>
           <div className="text-left">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Logs</p>
-            <p className="text-2xl font-bold text-slate-900">{logs.length}</p>
+            <p className="text-2xl font-bold text-slate-900" data-testid="total-logs-stat">{logs.length}</p>
           </div>
         </div>
         <div className="flex items-center justify-center gap-3 px-4 py-4">
@@ -148,7 +219,7 @@ const DailyLogs = () => {
           </span>
           <div className="text-left">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Check-ins</p>
-            <p className="text-2xl font-bold text-slate-900">{logs.filter(log => log.status === 'IN').length}</p>
+            <p className="text-2xl font-bold text-slate-900" data-testid="check-ins-stat">{logs.filter(log => log.status === 'IN').length}</p>
           </div>
         </div>
         <div className="flex items-center justify-center gap-3 px-4 py-4">
@@ -157,7 +228,7 @@ const DailyLogs = () => {
           </span>
           <div className="text-left">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Check-outs</p>
-            <p className="text-2xl font-bold text-slate-900">{logs.filter(log => log.status === 'OUT').length}</p>
+            <p className="text-2xl font-bold text-slate-900" data-testid="check-outs-stat">{logs.filter(log => log.status === 'OUT').length}</p>
           </div>
         </div>
       </div>
@@ -185,8 +256,9 @@ const DailyLogs = () => {
           ) : (
             <div className="h-full w-full">
               <Table
+                data-testid="daily-logs-table"
                 columns={tableColumns}
-                data={logs}
+                data={filteredLogs}
                 emptyMessage="No attendance logs found for this date"
                 emptyIcon={emptyIcon}/>
             </div>

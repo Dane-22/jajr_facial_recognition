@@ -68,7 +68,7 @@ const AdminLogin = () => {
         {/* Login Card */}
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl shadow-black/20 border border-slate-700/50 p-8">
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl" data-testid="login-error-message">
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -79,7 +79,7 @@ const AdminLogin = () => {
           )}
 
           {success && (
-            <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+            <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl" data-testid="login-success-message">
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -105,6 +105,7 @@ const AdminLogin = () => {
                   type="text"
                   id="username"
                   name="username"
+                  data-testid="username-input"
                   value={formData.username}
                   onChange={handleChange}
                   className={`w-full pl-12 pr-4 py-3 bg-slate-900/50 border ${
@@ -131,6 +132,7 @@ const AdminLogin = () => {
                   type="password"
                   id="password"
                   name="password"
+                  data-testid="password-input"
                   value={formData.password}
                   onChange={handleChange}
                   className={`w-full pl-12 pr-4 py-3 bg-slate-900/50 border ${
@@ -145,6 +147,7 @@ const AdminLogin = () => {
             {/* Submit Button */}
             <button
               type="submit"
+              data-testid="login-submit-button"
               disabled={loading || success}
               className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
               {loading ? (

@@ -13,33 +13,51 @@ const EmployeeList = () => {
   const [faceDescriptor, setFaceDescriptor] = useState(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [modelLoadingError, setModelLoadingError] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     fetchEmployees();
-    loadFaceApiModels();
   }, []);
 
-  const loadFaceApiModels = async () => {
-    try {
-      console.log('Loading face-api models...');
-      const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      ]);
-      console.log('Face-api models loaded successfully');
-      setModelsLoaded(true);
-      setModelLoadingError(false);
-    } catch (error) {
-      console.error('Error loading face-api models:', error);
-      setModelLoadingError(true);
-      setError('Failed to load face recognition models. Please refresh the page and try again.');
-    }
-  };
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFaceApiModels = async () => {
+      // Only load models when camera is being used
+      if (!isCapturing) return;
+
+      try {
+        console.log('Loading face-api models...');
+        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        
+        if (isMounted) {
+          console.log('Face-api models loaded successfully');
+          setModelsLoaded(true);
+          setModelLoadingError(false);
+        }
+      } catch (error) {
+        console.error('Error loading face-api models:', error);
+        if (isMounted) {
+          setModelLoadingError(true);
+          setError('Failed to load face recognition models. Please refresh the page and try again.');
+        }
+      }
+    };
+
+    loadFaceApiModels();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isCapturing]);
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -260,6 +278,12 @@ const EmployeeList = () => {
     });
   };
 
+  // Filter employees based on search term
+  const filteredEmployees = employees.filter(emp => 
+    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.role.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div>
       {/* Header */}
@@ -270,14 +294,41 @@ const EmployeeList = () => {
               <h2 className="text-lg font-semibold text-white mb-1">Employee Management</h2>
               <p className="text-slate-400 text-sm">Create, view, update, and delete employees</p>
             </div>
-            <button
-              onClick={handleCreate}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Employee
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  data-testid="employee-search-input"
+                  placeholder="Search employees..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-10 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 w-64"
+                />
+                <svg className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <button
+                data-testid="add-employee-button"
+                onClick={handleCreate}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Employee
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -317,7 +368,7 @@ const EmployeeList = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+        <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4" data-testid="employee-error-message">
           <p className="text-red-400 text-sm">{error}</p>
         </div>
       )}
@@ -344,9 +395,19 @@ const EmployeeList = () => {
               <p className="text-slate-400 font-medium">No employees found</p>
               <p className="text-slate-500 text-sm mt-1">Click "Add Employee" to create one</p>
             </div>
+          ) : filteredEmployees.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-12 h-12 bg-slate-700/50 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="text-slate-400 font-medium">No employees match your search</p>
+              <p className="text-slate-500 text-sm mt-1">Try a different search term</p>
+            </div>
           ) : (
             <div className="overflow-x-auto min-h-[18rem]">
-              <table className="w-full">
+              <table className="w-full" data-testid="employee-table">
                 <thead>
                   <tr className="bg-slate-900/50">
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -367,7 +428,7 @@ const EmployeeList = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                  {employees.map((employee) => (
+                  {filteredEmployees.map((employee) => (
                     <tr key={employee.id} className="hover:bg-slate-700/30 transition-colors duration-200">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
                         #{employee.id}
@@ -386,6 +447,7 @@ const EmployeeList = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">
                           <button
+                            data-testid={`edit-employee-${employee.id}`}
                             onClick={() => handleEdit(employee)}
                             className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors duration-200"
                             title="Edit">
@@ -394,6 +456,7 @@ const EmployeeList = () => {
                             </svg>
                           </button>
                           <button
+                            data-testid={`delete-employee-${employee.id}`}
                             onClick={() => handleDelete(employee.id)}
                             className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors duration-200"
                             title="Delete">
@@ -430,6 +493,7 @@ const EmployeeList = () => {
                   <input
                     type="text"
                     id="name"
+                    data-testid="employee-name-input"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
@@ -444,6 +508,7 @@ const EmployeeList = () => {
                   <input
                     type="text"
                     id="role"
+                    data-testid="employee-role-input"
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
@@ -527,6 +592,7 @@ const EmployeeList = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
+                  data-testid="cancel-employee-button"
                   onClick={() => {
                     setShowModal(false);
                     setFormData({ name: '', role: '' });
@@ -539,6 +605,7 @@ const EmployeeList = () => {
                 </button>
                 <button
                   type="submit"
+                  data-testid="save-employee-button"
                   disabled={!editingEmployee && !faceDescriptor}
                   className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors duration-200">
                   {editingEmployee ? 'Update' : 'Create Employee'}

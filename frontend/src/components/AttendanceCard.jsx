@@ -44,7 +44,14 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
     
     const lastTime = new Date(lastAttendance.timestamp).getTime();
     const currentTime = Date.now();
+    const hoursSinceLast = (currentTime - lastTime) / (1000 * 60 * 60);
     const minutesSinceLast = (currentTime - lastTime) / (1000 * 60);
+    
+    // Business rule: More than 12 hours since last log = new shift, always IN
+    if (hoursSinceLast > 12) {
+      // New shift - always record IN
+      return 'IN';
+    }
     
     // Business rule: More than MIN_TOGGLE_MINUTES since last log = allow toggle
     if (minutesSinceLast > MIN_TOGGLE_MINUTES) {
