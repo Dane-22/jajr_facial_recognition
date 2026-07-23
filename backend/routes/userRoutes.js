@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { registerUser, getAllUsers } = require('../controllers/userController');
-const { verifyAdminToken } = require('../middleware/authMiddleware');
+const { verifyKioskOrAdminToken } = require('../middleware/kioskAuth');
 
-router.post('/register', registerUser);
-router.get('/', getAllUsers);
+router.post('/register', verifyKioskOrAdminToken, registerUser);
+router.get('/', verifyKioskOrAdminToken, getAllUsers);
 
 module.exports = router;

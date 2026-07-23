@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { manualLog } = require('../middleware/audit');
 
 const adminLogin = async (req, res) => {
   try {
@@ -28,9 +29,22 @@ const adminLogin = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: admin.id, username: admin.username },
+      { id: admin.id, username: admin.username, type: 'admin' },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
+    );
+
+    // Log login action
+    await manualLog(
+      admin.id,
+      'admin',
+      'LOGIN',
+      'admin',
+      admin.id,
+      null,
+      { username: admin.username },
+      req.ip || req.connection.remoteAddress,
+      req.get('user-agent') || null
     );
 
     res.status(200).json({

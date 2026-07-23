@@ -21,6 +21,16 @@ class CameraManager {
     this.isMotionDetectionActive = false;
     this.motionStream = null;
     this.motionVideo = null;
+    this.currentFacingMode = 'user';
+  }
+
+  /**
+   * Switch between front ('user') and rear ('environment') cameras
+   */
+  async toggleFacingMode() {
+    const nextMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
+    this.stopCamera();
+    return await this.startCamera({ video: { facingMode: nextMode, width: { ideal: 640 }, height: { ideal: 480 } } });
   }
 
   /**
@@ -30,16 +40,18 @@ class CameraManager {
    */
   async startCamera(options = {}) {
     try {
+      const facing = options?.video?.facingMode || this.currentFacingMode;
       const defaultOptions = {
         video: { 
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: 'user'
+          facingMode: facing
         },
         audio: false
       };
 
       const config = { ...defaultOptions, ...options };
+      this.currentFacingMode = facing;
       
       this.stream = await navigator.mediaDevices.getUserMedia(config);
       this.isActive = true;

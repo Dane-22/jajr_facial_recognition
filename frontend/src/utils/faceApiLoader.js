@@ -22,13 +22,19 @@ export const loadModels = async () => {
   }
 };
 
+const KIOSK_API_KEY = 'kiosk_dev_secret_key_2026';
+
 /**
  * Fetch registered users from the backend API
  * @returns {Promise<Array>} Array of user objects with face descriptors
  */
 export const fetchRegisteredUsers = async () => {
   try {
-    const response = await fetch(`${API_URL}/users`);
+    const token = localStorage.getItem('admin_token');
+    const headers = { 'X-Kiosk-Api-Key': KIOSK_API_KEY };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_URL}/users`, { headers });
     if (!response.ok) {
       throw new Error('Failed to fetch users');
     }

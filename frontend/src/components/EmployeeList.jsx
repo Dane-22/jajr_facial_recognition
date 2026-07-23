@@ -14,13 +14,19 @@ const EmployeeList = () => {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [modelLoadingError, setModelLoadingError] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('DESC');
+  const [showFilters, setShowFilters] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+  }, [searchTerm, roleFilter, startDate, endDate, sortBy, sortOrder]);
 
   useEffect(() => {
     let isMounted = true;
@@ -64,7 +70,16 @@ const EmployeeList = () => {
     setError('');
     try {
       const token = localStorage.getItem('admin_token');
-      const response = await fetch('http://localhost:5000/api/employees', {
+      const params = new URLSearchParams();
+      
+      if (searchTerm) params.append('search', searchTerm);
+      if (roleFilter) params.append('role', roleFilter);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
+      
+      const response = await fetch(`http://localhost:5000/api/employees?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -278,11 +293,14 @@ const EmployeeList = () => {
     });
   };
 
-  // Filter employees based on search term
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const clearFilters = () => {
+    setSearchTerm('');
+    setRoleFilter('');
+    setStartDate('');
+    setEndDate('');
+    setSortBy('created_at');
+    setSortOrder('DESC');
+  };
 
   return (
     <div>
@@ -295,6 +313,14 @@ const EmployeeList = () => {
               <p className="text-slate-400 text-sm">Create, view, update, and delete employees</p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filters
+              </button>
               <div className="relative">
                 <input
                   type="text"
@@ -332,6 +358,73 @@ const EmployeeList = () => {
           </div>
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showFilters && (
+        <div className="mb-6 bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Role</label>
+              <input
+                type="text"
+                placeholder="Filter by role..."
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+              >
+                <option value="created_at">Created Date</option>
+                <option value="name">Name</option>
+                <option value="role">Role</option>
+                <option value="id">ID</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Order</label>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+              >
+                <option value="DESC">Descending</option>
+                <option value="ASC">Ascending</option>
+              </select>
+            </div>
+            <div>
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-xl transition-colors duration-200">
+                Clear Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
@@ -395,16 +488,6 @@ const EmployeeList = () => {
               <p className="text-slate-400 font-medium">No employees found</p>
               <p className="text-slate-500 text-sm mt-1">Click "Add Employee" to create one</p>
             </div>
-          ) : filteredEmployees.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="w-12 h-12 bg-slate-700/50 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <p className="text-slate-400 font-medium">No employees match your search</p>
-              <p className="text-slate-500 text-sm mt-1">Try a different search term</p>
-            </div>
           ) : (
             <div className="overflow-x-auto min-h-[18rem]">
               <table className="w-full" data-testid="employee-table">
@@ -428,7 +511,7 @@ const EmployeeList = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                  {filteredEmployees.map((employee) => (
+                  {employees.map((employee) => (
                     <tr key={employee.id} className="hover:bg-slate-700/30 transition-colors duration-200">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
                         #{employee.id}

@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { manualLog } = require('../middleware/audit');
 
 const logAttendance = async (req, res) => {
   try {
@@ -48,6 +49,37 @@ const logAttendance = async (req, res) => {
       [actualUserId, status]
     );
 
+    // Log attendance action
+    await manualLog(
+      actualUserId,
+      'employee',
+      status === 'IN' ? 'CHECK_IN' : 'CHECK_OUT',
+      'attendance',
+      result.insertId,
+      null,
+      { userId: actualUserId, status, timestamp: new Date() },
+      req.ip || req.connection.remoteAddress,
+      req.get('user-agent') || null
+    );
+
+    // ── Real-time broadcast ────────────────────────────────────────────────
+    // Fetch user name for the socket payload
+    const [userRows] = await pool.query('SELECT name, role FROM users WHERE id = ?', [actualUserId]);
+    const userName = userRows[0]?.name || String(actualUserId);
+    const userRole = userRows[0]?.role || '';
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('attendance:new', {
+        id: result.insertId,
+        user_id: actualUserId,
+        name: userName,
+        role: userRole,
+        status,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     res.status(201).json({
       message: 'Attendance logged successfully',
       logId: result.insertId,
@@ -62,22 +94,42 @@ const logAttendance = async (req, res) => {
 
 const getDailyLogs = async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, userId, status, sortBy = 'timestamp', sortOrder = 'DESC' } = req.query;
     
     const selectedDate = date || new Date().toISOString().split('T')[0];
     
-    const [logs] = await pool.query(
-      `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, users.name, users.role
+    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, users.name, users.role, users.id as user_id
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
-       WHERE DATE(attendance_logs.timestamp) = ?
-       ORDER BY attendance_logs.timestamp DESC`,
-      [selectedDate]
-    );
+       WHERE DATE(attendance_logs.timestamp) = ?`;
+    const params = [selectedDate];
+    
+    // Filter by employee
+    if (userId) {
+      query += ' AND users.id = ?';
+      params.push(userId);
+    }
+    
+    // Filter by status
+    if (status && (status === 'IN' || status === 'OUT')) {
+      query += ' AND attendance_logs.status = ?';
+      params.push(status);
+    }
+    
+    // Sort
+    const allowedSortFields = ['timestamp', 'name', 'status', 'id'];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'timestamp';
+    const allowedSortOrders = ['ASC', 'DESC'];
+    const sortDirection = allowedSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+    
+    query += ` ORDER BY ${sortField} ${sortDirection}`;
+    
+    const [logs] = await pool.query(query, params);
 
     res.status(200).json({
       date: selectedDate,
-      logs
+      logs,
+      filters: { userId, status, sortBy, sortOrder }
     });
   } catch (error) {
     console.error('Error fetching daily logs:', error);

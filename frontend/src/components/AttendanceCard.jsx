@@ -85,8 +85,12 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
       // Add user to logged set for session tracking
       setLoggedUsers(prev => new Set([...prev, userId]));
 
+      const KIOSK_HEADER = { 'X-Kiosk-Api-Key': 'kiosk_dev_secret_key_2026' };
+
       // Fetch last attendance from database
-      const lastAttendanceResponse = await fetch(`${API_URL}/attendance/last/${userId}`);
+      const lastAttendanceResponse = await fetch(`${API_URL}/attendance/last/${userId}`, {
+        headers: KIOSK_HEADER
+      });
       const lastAttendance = await lastAttendanceResponse.json();
       
       // Determine status based on business rules
@@ -102,6 +106,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...KIOSK_HEADER
         },
         body: JSON.stringify({
           userId,

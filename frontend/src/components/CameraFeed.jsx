@@ -355,12 +355,38 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
 
   const statusInfo = getStatusInfo();
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef(null);
+
+  const handleToggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(console.error);
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(console.error);
+    }
+  };
+
+  const handleFlipCamera = async () => {
+    try {
+      setCameraStatus('initializing');
+      const stream = await cameraManager.toggleFacingMode();
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setIsStreamActive(true);
+        setCameraStatus('active');
+      }
+    } catch (err) {
+      console.error('Error flipping camera:', err);
+    }
+  };
+
   return (
-    <div className="relative w-full max-w-2xl mx-auto">
-      <div className="relative bg-gray-900 rounded-2xl overflow-hidden shadow-2xl">
+    <div ref={containerRef} className={`relative w-full max-w-2xl mx-auto ${isFullscreen ? 'fixed inset-0 z-50 max-w-none bg-black flex items-center justify-center p-0' : ''}`}>
+      <div className={`relative bg-gray-900 rounded-2xl overflow-hidden shadow-2xl w-full ${isFullscreen ? 'h-full flex items-center justify-center' : ''}`}>
         {/* Error state */}
         {cameraStatus === 'error' && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10">
+          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10 p-4">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -370,7 +396,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
             <p className="text-gray-400 text-sm text-center max-w-xs mb-4">{cameraError}</p>
             <button
               onClick={startVideo}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors duration-200">
+              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all duration-200 min-h-[44px]">
               Retry Camera
             </button>
           </div>
@@ -378,7 +404,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
 
         {/* Idle state */}
         {cameraStatus === 'idle' && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10">
+          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10 p-4">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -386,11 +412,11 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
             </div>
             <p className="text-gray-400 font-medium mb-2">Camera Idle</p>
             <p className="text-gray-500 text-sm text-center max-w-xs mb-4">
-              Camera was stopped to save battery. Click to reactivate.
+              Camera was stopped to save battery. Tap to reactivate.
             </p>
             <button
               onClick={startVideo}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors duration-200">
+              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all duration-200 min-h-[44px]">
               Reactivate Camera
             </button>
           </div>
@@ -409,7 +435,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
           autoPlay
           muted
           playsInline
-          className="w-full h-auto"
+          className={`w-full ${isFullscreen ? 'h-full object-cover' : 'h-auto'}`}
           onLoadedMetadata={() => {
             if (videoRef.current) {
               videoRef.current.play();
@@ -417,23 +443,23 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
           }}/>
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full"/>
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"/>
         
         {/* Status indicator */}
         <div className="absolute top-4 left-4 flex items-center gap-2">
           <div className={`w-3 h-3 rounded-full ${statusInfo.color}`} />
-          <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full">
+          <span className="text-white text-xs sm:text-sm font-medium bg-black/60 backdrop-blur-md px-3 py-1 rounded-full shadow-lg">
             {statusInfo.text}
           </span>
         </div>
 
         {/* Confidence warning */}
         {warningMessage && (
-          <div className="absolute top-4 right-4 max-w-xs">
-            <div className={`px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm ${
+          <div className="absolute top-4 right-4 max-w-xs z-20">
+            <div className={`px-4 py-3 rounded-xl shadow-xl backdrop-blur-md ${
               warningType === 'low-confidence' 
-                ? 'bg-orange-500/90 text-white' 
-                : 'bg-red-500/90 text-white'
+                ? 'bg-amber-500/90 text-white' 
+                : 'bg-rose-500/90 text-white'
             }`}>
               <div className="flex items-start gap-2">
                 {warningType === 'low-confidence' ? (
@@ -445,7 +471,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )}
-                <p className="text-sm font-medium">{warningMessage}</p>
+                <p className="text-xs sm:text-sm font-medium">{warningMessage}</p>
               </div>
             </div>
           </div>
@@ -453,10 +479,10 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
 
         {/* Dwell time countdown */}
         {isDwelling && dwellCountdown > 0 && (
-          <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
-            <div className="bg-black/70 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg">
+          <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-20 w-11/12 max-w-xs">
+            <div className="bg-slate-900/90 backdrop-blur-md px-6 py-4 rounded-2xl shadow-2xl border border-slate-700/50">
               <div className="flex flex-col items-center gap-2">
-                <div className="text-white text-sm font-medium">Hold position for attendance</div>
+                <div className="text-white text-xs sm:text-sm font-medium">Hold position for attendance</div>
                 <div className="flex items-center gap-3">
                   <div className={`text-3xl font-bold ${
                     dwellCountdown > 2 ? 'text-red-400' : 
@@ -464,7 +490,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
                   }`}>
                     {dwellCountdown}
                   </div>
-                  <div className="w-16 h-2 bg-gray-600 rounded-full overflow-hidden">
+                  <div className="w-24 h-2.5 bg-slate-700 rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all duration-1000 ${
                         dwellCountdown > 2 ? 'bg-red-400' : 
@@ -479,17 +505,48 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
           </div>
         )}
 
-        {/* Manual controls */}
+        {/* Touch-Friendly Action Toolbar overlay */}
         {cameraStatus === 'active' && (
-          <div className="absolute bottom-4 right-4 flex gap-2">
+          <div className="absolute bottom-4 right-4 flex items-center gap-2 z-20">
+            {/* Flip Camera Button for Mobile/Tablets */}
             <button
+              type="button"
+              onClick={handleFlipCamera}
+              className="p-3 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-white rounded-xl shadow-lg backdrop-blur-md transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-700/50"
+              title="Switch Camera (Front/Back)">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+
+            {/* Fullscreen Toggle Button */}
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="p-3 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-white rounded-xl shadow-lg backdrop-blur-md transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-700/50"
+              title={isFullscreen ? 'Exit Fullscreen Kiosk' : 'Fullscreen Kiosk Mode'}>
+              {isFullscreen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              )}
+            </button>
+
+            {/* Stop Camera Button */}
+            <button
+              type="button"
               onClick={stopVideo}
-              className="px-3 py-1.5 bg-red-600/80 hover:bg-red-700/80 text-white text-xs font-medium rounded-lg transition-colors duration-200 backdrop-blur-sm">
+              className="px-4 py-2.5 bg-rose-600/80 hover:bg-rose-700 active:scale-95 text-white text-xs font-semibold rounded-xl shadow-lg backdrop-blur-md transition-all duration-200 min-h-[44px] border border-rose-500/50">
               Stop Camera
             </button>
           </div>
         )}
       </div>
+
 
       {/* Instructions */}
       <div className="mt-4 text-center text-gray-600 text-sm">

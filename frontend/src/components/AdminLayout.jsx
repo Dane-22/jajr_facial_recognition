@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DailyLogs from './DailyLogs';
 import RegisterFace from './RegisterFace';
 import AttendanceAudit from './AttendanceAudit';
 import EmployeeList from './EmployeeList';
+import AttendanceReports from './AttendanceReports';
+import AuditLogs from './AuditLogs';
+import DashboardCharts from './DashboardCharts';
 
 const AdminLayout = () => {
   const [activeTab, setActiveTab] = useState('logs');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Detect system dark mode preference for root class
+  const [systemDark, setSystemDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => setSystemDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const navItems = [
     {
@@ -47,6 +61,33 @@ const AdminLayout = () => {
         </svg>
       ),
     },
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'audit-logs',
+      label: 'Audit Logs',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'dashboard',
+      label: 'Dashboard Charts',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      ),
+    },
   ];
 
   const handleLogout = () => {
@@ -69,6 +110,12 @@ const AdminLayout = () => {
         return <RegisterFace />;
       case 'audit':
         return <AttendanceAudit />;
+      case 'reports':
+        return <AttendanceReports />;
+      case 'audit-logs':
+        return <AuditLogs />;
+      case 'dashboard':
+        return <DashboardCharts />;
       default:
         return <DailyLogs />;
     }

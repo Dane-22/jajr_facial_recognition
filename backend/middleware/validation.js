@@ -38,10 +38,15 @@ const validateAdminLogin = [
 
 const validateAttendance = [
   body('userId')
-    .isInt().withMessage('User ID must be an integer'),
+    .notEmpty().withMessage('User ID is required')
+    .custom((value) => {
+      // Accept numeric IDs (from admin tools) OR name strings (from kiosk)
+      if (typeof value === 'number') return true;
+      if (typeof value === 'string' && value.trim().length > 0) return true;
+      throw new Error('User ID must be a valid ID or employee name');
+    }),
   body('status')
     .trim()
-    .escape()
     .isIn(['IN', 'OUT']).withMessage('Status must be either IN or OUT'),
   (req, res, next) => {
     const errors = validationResult(req);
@@ -51,6 +56,7 @@ const validateAttendance = [
     next();
   }
 ];
+
 
 module.exports = {
   validateEmployee,

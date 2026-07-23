@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { encrypt, decrypt } = require('../utils/crypto');
 
 const registerUser = async (req, res) => {
   try {
@@ -9,10 +10,11 @@ const registerUser = async (req, res) => {
     }
 
     const faceDescriptorJson = JSON.stringify(faceDescriptor);
+    const encryptedDescriptor = encrypt(faceDescriptorJson);
 
     const [result] = await pool.query(
       'INSERT INTO users (name, role, face_descriptor) VALUES (?, ?, ?)',
-      [name, role, faceDescriptorJson]
+      [name, role, encryptedDescriptor]
     );
 
     res.status(201).json({
@@ -31,10 +33,20 @@ const getAllUsers = async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, name, role, face_descriptor, created_at FROM users');
 
-    const users = rows.map(user => ({
-      ...user,
-      face_descriptor: JSON.parse(user.face_descriptor)
-    }));
+    const users = rows.map(user => {
+      let descriptor = user.face_descriptor;
+      try {
+        const decrypted = decrypt(descriptor);
+        descriptor = JSON.parse(decrypted);
+      } catch (err) {
+        console.warn(`[UserController] Failed to parse descriptor for user ID ${user.id}:`, err.message);
+        descriptor = [];
+      }
+      return {
+        ...user,
+        face_descriptor: descriptor
+      };
+    });
 
     res.status(200).json(users);
   } catch (error) {
@@ -47,3 +59,4 @@ module.exports = {
   registerUser,
   getAllUsers
 };
+

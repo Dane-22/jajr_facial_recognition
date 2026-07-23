@@ -6,6 +6,17 @@ import AdminLogin from './components/AdminLogin';
 import AdminLayout from './components/AdminLayout';
 import { loadModels, initializeFaceMatcher } from './utils/faceApiLoader';
 
+import PWAInstallBanner from './components/PWAInstallBanner';
+
+// ── ProtectedRoute ─────────────────────────────────────────────────────────────
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('admin_token');
+  if (!token) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return children;
+};
+
 function MainApp() {
   const [systemStatus, setSystemStatus] = useState('loading');
   const [faceMatcher, setFaceMatcher] = useState(null);
@@ -33,8 +44,9 @@ function MainApp() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
+      <PWAInstallBanner />
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -159,7 +171,14 @@ function App() {
       <Routes>
         <Route path="/" element={<MainApp />} />
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/dashboard" element={<AdminLayout />} />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

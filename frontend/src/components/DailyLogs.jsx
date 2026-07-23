@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import useSocket from '../hooks/useSocket';
 import Table from './UI/Table';
 
 const API_URL = 'http://localhost:5000/api';
@@ -10,6 +11,10 @@ const DailyLogs = () => {
   const [error, setError] = useState('');
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [liveCount, setLiveCount] = useState(0);
+  const [sortBy, setSortBy] = useState('timestamp');
+  const [sortOrder, setSortOrder] = useState('DESC');
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
@@ -19,12 +24,28 @@ const DailyLogs = () => {
     }
   }, []);
 
+  // ── Real-time updates via Socket.IO ──────────────────────────────────────
+  const isLoggedIn = !!localStorage.getItem('admin_token');
+  const today = new Date().toISOString().split('T')[0];
+
+  const handleNewAttendance = useCallback((data) => {
+    // Only inject live row when viewing today and no specific employee/status filter
+    if (selectedDate !== today) return;
+    if (selectedEmployee && String(data.user_id) !== String(selectedEmployee)) return;
+    if (statusFilter && data.status !== statusFilter) return;
+
+    setLogs((prev) => [data, ...prev]);
+    setLiveCount((c) => c + 1);
+  }, [selectedDate, selectedEmployee, statusFilter, today]);
+
+  useSocket('attendance:new', handleNewAttendance, isLoggedIn);
+
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (token) {
       fetchDailyLogs(token);
     }
-  }, [selectedDate]);
+  }, [selectedDate, selectedEmployee, statusFilter, sortBy, sortOrder]);
 
   const fetchEmployees = async (token) => {
     try {
@@ -46,8 +67,15 @@ const DailyLogs = () => {
     setLoading(true);
     setError('');
     try {
+      const params = new URLSearchParams();
+      params.append('date', selectedDate);
+      if (selectedEmployee) params.append('userId', selectedEmployee);
+      if (statusFilter) params.append('status', statusFilter);
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
+      
       const response = await fetch(
-        `${API_URL}/attendance/daily?date=${selectedDate}`,
+        `${API_URL}/attendance/daily?${params.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -85,14 +113,16 @@ const DailyLogs = () => {
     });
   };
 
-  // Filter logs by selected employee
-  const filteredLogs = selectedEmployee 
-    ? logs.filter(log => log.user_id === parseInt(selectedEmployee))
-    : logs;
+  const clearFilters = () => {
+    setSelectedEmployee('');
+    setStatusFilter('');
+    setSortBy('timestamp');
+    setSortOrder('DESC');
+  };
 
   const exportToCSV = () => {
     const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp'];
-    const rows = filteredLogs.map(log => [
+    const rows = logs.map(log => [
       log.id,
       log.name,
       log.role,
@@ -160,7 +190,18 @@ const DailyLogs = () => {
       {/* Compact Integrated Header */}
       <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-0 p-0">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-1">Daily Attendance Logs</h2>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-lg font-bold text-slate-900">Daily Attendance Logs</h2>
+            {isLoggedIn && selectedDate === today && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                LIVE
+                {liveCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-green-500 text-white text-xs leading-none">{liveCount}</span>
+                )}
+              </span>
+            )}
+          </div>
           <p className="text-slate-500 text-xs">View and manage attendance records</p>
         </div>
         <div className="flex items-center gap-3">
@@ -188,11 +229,33 @@ const DailyLogs = () => {
               <option key={emp.id} value={emp.id}>{emp.name}</option>
             ))}
           </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
+            <option value="">All Status</option>
+            <option value="IN">Check-in</option>
+            <option value="OUT">Check-out</option>
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
+            <option value="timestamp">Timestamp</option>
+            <option value="name">Name</option>
+            <option value="status">Status</option>
+          </select>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition-colors duration-200">
+            Clear
+          </button>
           <button
             type="button"
             data-testid="daily-logs-export-button"
             onClick={exportToCSV}
-            disabled={filteredLogs.length === 0}
+            disabled={logs.length === 0}
             className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -258,7 +321,7 @@ const DailyLogs = () => {
               <Table
                 data-testid="daily-logs-table"
                 columns={tableColumns}
-                data={filteredLogs}
+                data={logs}
                 emptyMessage="No attendance logs found for this date"
                 emptyIcon={emptyIcon}/>
             </div>
