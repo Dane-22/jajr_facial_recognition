@@ -13,7 +13,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     {
       id: 1,
       sender: 'bot',
-      text: "Hello! 👋 I'm your local AI Assistant. Ask me about today's attendance, late logs, or dictate commands using the mic!",
+      text: "Hello! 👋 I'm JAJR Assistant for this system. Ask me about today's attendance, late logs, or dictate commands using the mic!",
       suggestedChips: ["📊 Today's Summary", "🚨 Late Arrivals", "👤 Register Face"],
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
@@ -159,7 +159,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
           </div>
           <div className="text-left hidden sm:block">
             <p className="text-xs font-semibold leading-tight text-white">AI Assistant</p>
-            <p className="text-[10px] text-emerald-400 font-medium">100% Free • Local</p>
+            {/* <p className="text-[10px] text-emerald-400 font-medium">100% Free • Local</p> */}
           </div>
           {unreadCount > 0 && (
             <span className="w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-slate-900">
@@ -180,7 +180,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  Attendance Assistant
+                  JAJR Assistant
                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </h3>
                 <p className="text-[10px] text-slate-400">Zero-API Engine • Voice Enabled</p>
@@ -213,11 +213,10 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
                 key={msg.id}
                 className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                    msg.sender === 'user'
-                      ? 'bg-emerald-600 text-white rounded-br-none shadow-md'
-                      : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none shadow-sm'
-                  }`}>
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${msg.sender === 'user'
+                    ? 'bg-emerald-600 text-white rounded-br-none shadow-md'
+                    : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none shadow-sm'
+                    }`}>
                   <p className="whitespace-pre-line">{msg.text}</p>
 
                   {/* Render Stat Card if provided */}
@@ -321,11 +320,10 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
               <button
                 type="button"
                 onClick={toggleVoiceInput}
-                className={`p-2.5 rounded-xl border transition-all ${
-                  isVoiceActive
-                    ? 'bg-rose-500 text-white border-rose-400 animate-bounce'
-                    : 'bg-slate-700/80 text-slate-300 hover:bg-slate-700 hover:text-emerald-400 border-slate-600'
-                }`}
+                className={`p-2.5 rounded-xl border transition-all ${isVoiceActive
+                  ? 'bg-rose-500 text-white border-rose-400 animate-bounce'
+                  : 'bg-slate-700/80 text-slate-300 hover:bg-slate-700 hover:text-emerald-400 border-slate-600'
+                  }`}
                 title="Dictate query with microphone">
                 🎙️
               </button>
