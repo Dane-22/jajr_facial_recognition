@@ -35,7 +35,6 @@ const DailyLogs = () => {
   const today = new Date().toISOString().split('T')[0];
 
   const handleNewAttendance = useCallback((data) => {
-    // Only inject live row when viewing today and no specific employee/status filter
     if (selectedDate !== today) return;
     if (selectedEmployee && String(data.user_id) !== String(selectedEmployee)) return;
     if (statusFilter && data.status !== statusFilter) return;
@@ -72,10 +71,7 @@ const DailyLogs = () => {
 
   const fetchDailyLogs = async (token) => {
     const now = Date.now();
-    // Rate limit throttle check (min 300ms between calls)
-    if (now - lastFetchRef.current < 300) {
-      return;
-    }
+    if (now - lastFetchRef.current < 300) return;
     lastFetchRef.current = now;
 
     setLoading(true);
@@ -87,7 +83,7 @@ const DailyLogs = () => {
       if (statusFilter) params.append('status', statusFilter);
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
-      
+
       const response = await fetch(
         `${API_URL}/attendance/daily?${params.toString()}`,
         {
@@ -117,10 +113,6 @@ const DailyLogs = () => {
     }
   };
 
-  const handleDateChange = (e) => {
-    setSelectedDate(e.target.value);
-  };
-
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleString('en-US', {
@@ -138,6 +130,7 @@ const DailyLogs = () => {
     setStatusFilter('');
     setSortBy('timestamp');
     setSortOrder('DESC');
+    setSelectedDate(today);
   };
 
   const exportToCSV = () => {
@@ -166,222 +159,245 @@ const DailyLogs = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Metrics summary calculations
+  const totalCount = logs.length;
+  const inCount = logs.filter(l => l.status === 'IN').length;
+  const outCount = logs.filter(l => l.status === 'OUT').length;
+
   const tableColumns = [
-    { header: 'ID', key: 'id' },
-    { header: 'Name', key: 'name' },
     { 
-      header: 'Role', 
+      header: 'ID', 
+      key: 'id',
+      render: (value) => <span className="font-mono text-xs font-bold text-slate-400">#{value}</span>
+    },
+    { 
+      header: 'Employee Name', 
+      key: 'name',
+      render: (value) => <span className="font-bold text-slate-900">{value}</span>
+    },
+    {
+      header: 'Role / Position',
       key: 'role',
       render: (value) => (
-        <span className="px-2 py-1 bg-slate-100 text-black rounded-lg text-xs font-medium">
-          {value}
+        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200">
+          {value || 'Staff'}
         </span>
       )
     },
-    { header: 'Status', key: 'status' },
-    { 
-      header: 'Timestamp', 
+    {
+      header: 'Status',
+      key: 'status',
+      render: (value) => (
+        value === 'IN' ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Check IN
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            Check OUT
+          </span>
+        )
+      )
+    },
+    {
+      header: 'Scan Timestamp',
       key: 'timestamp',
-      render: (value) => formatTimestamp(value)
+      render: (value) => (
+        <span className="text-slate-600 text-xs font-medium">
+          {formatTimestamp(value)}
+        </span>
+      )
     }
   ];
 
-  const emptyIcon = (
-    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-    </svg>
-  );
-
-  const totalLogsIcon = (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-    </svg>
-  );
-
-  const checkInsIcon = (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-    </svg>
-  );
-
-  const checkOutsIcon = (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-    </svg>
-  );
-
   // Pagination calculations
-  const totalItems = logs.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentLogs = logs.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm">
-      {/* Compact Integrated Header */}
-      <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-0 p-0">
+    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden space-y-6 p-6">
+      {/* Page Title & Live Sync Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-lg font-bold text-slate-900">Daily Attendance Logs</h2>
-            {isLoggedIn && selectedDate === today && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                LIVE
-                {liveCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-green-500 text-white text-xs leading-none">{liveCount}</span>
-                )}
-              </span>
-            )}
-          </div>
-          <p className="text-slate-500 text-xs">View and manage attendance records</p>
+          <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+            📋 Daily Attendance Logs
+            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium border border-slate-200">
+              Real-time Feed
+            </span>
+          </h2>
+          <p className="text-slate-500 text-xs">Monitor live employee check-in & check-out scans for selected dates.</p>
         </div>
+
         <div className="flex items-center gap-3">
-          <label htmlFor="date" className="text-slate-600 text-sm font-medium">
-            Select Date:
-          </label>
-          <input
-            type="date"
-            id="date"
-            data-testid="date-filter-input"
-            value={selectedDate}
-            onChange={handleDateChange}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"/>
-          <label htmlFor="employee" className="text-slate-600 text-sm font-medium ml-4">
-            Employee:
-          </label>
-          <select
-            id="employee"
-            data-testid="daily-logs-employee-select"
-            value={selectedEmployee}
-            onChange={(e) => setSelectedEmployee(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
-            <option value="">All Employees</option>
-            {employees.map(emp => (
-              <option key={emp.id} value={emp.id}>{emp.name}</option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
-            <option value="">All Status</option>
-            <option value="IN">Check-in</option>
-            <option value="OUT">Check-out</option>
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
-            <option value="timestamp">Timestamp</option>
-            <option value="name">Name</option>
-            <option value="status">Status</option>
-          </select>
+          <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-semibold text-emerald-800">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Socket.IO Active {liveCount > 0 && `(+${liveCount} live)`}
+          </div>
+
           <button
-            type="button"
-            onClick={clearFilters}
-            className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition-colors duration-200">
-            Clear
-          </button>
-          <button
-            type="button"
-            data-testid="daily-logs-export-button"
             onClick={exportToCSV}
             disabled={logs.length === 0 || isExporting}
-            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            {isExporting ? 'Exporting...' : 'Export CSV'}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2">
+            <span>📥</span> {isExporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
       </div>
 
-      {/* Flat Summary Panels */}
-      <div className="w-full grid grid-cols-3 divide-x divide-slate-150 border-b border-slate-150 m-0 p-0">
-        <div className="flex items-center justify-center gap-3 px-4 py-4">
-          <span className="w-8 h-8 text-slate-500">
-            {totalLogsIcon}
-          </span>
-          <div className="text-left">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Logs</p>
-            <p className="text-2xl font-bold text-slate-900" data-testid="total-logs-stat">{logs.length}</p>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-200/60 text-slate-700 flex items-center justify-center font-bold text-base">
+            📊
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Scans Logged</p>
+            <p className="text-xl font-extrabold text-slate-900">{totalCount}</p>
           </div>
         </div>
-        <div className="flex items-center justify-center gap-3 px-4 py-4">
-          <span className="w-8 h-8 text-slate-500">
-            {checkInsIcon}
-          </span>
-          <div className="text-left">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Check-ins</p>
-            <p className="text-2xl font-bold text-slate-900" data-testid="check-ins-stat">{logs.filter(log => log.status === 'IN').length}</p>
+
+        <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
+            🟢
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Check INs</p>
+            <p className="text-xl font-extrabold text-emerald-900">{inCount}</p>
           </div>
         </div>
-        <div className="flex items-center justify-center gap-3 px-4 py-4">
-          <span className="w-8 h-8 text-slate-500">
-            {checkOutsIcon}
-          </span>
-          <div className="text-left">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Check-outs</p>
-            <p className="text-2xl font-bold text-slate-900" data-testid="check-outs-stat">{logs.filter(log => log.status === 'OUT').length}</p>
+
+        <div className="bg-rose-50/50 border border-rose-200/60 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-base">
+            🔴
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Check OUTs</p>
+            <p className="text-xl font-extrabold text-rose-900">{outCount}</p>
           </div>
         </div>
       </div>
 
-      {/* Compact Table Area */}
-      <div className="w-full m-0 p-0">
-        <div className="border-b border-slate-100 px-4 py-4">
-          <h3 className="text-sm font-bold text-slate-900">Attendance Records</h3>
-        </div>
-        <div className="w-full m-0 p-0">
-          {loading ? (
-            <div className="flex py-12 items-center justify-center">
-              <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-700 rounded-full animate-spin mr-4" />
-              <p className="text-slate-500 text-sm font-medium">Loading attendance logs...</p>
+      {/* Filter Control Bar */}
+      <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Date Selector */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Target Date</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              />
             </div>
-          ) : error ? (
-            <div className="flex py-12 flex-col items-center justify-center">
-              <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-slate-500 text-sm font-medium">{error}</p>
-            </div>
-          ) : (
-            <div className="w-full">
-              <Table
-                data-testid="daily-logs-table"
-                columns={tableColumns}
-                data={currentLogs}
-                emptyMessage="No attendance logs found for this date"
-                emptyIcon={emptyIcon}/>
-            </div>
-          )}
-        </div>
 
-        {/* Pagination Bar */}
+            {/* Employee Filter */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter Employee</label>
+              <select
+                value={selectedEmployee}
+                onChange={(e) => setSelectedEmployee(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                <option value="">All Employees</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.role || 'Staff'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Type</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                <option value="">All Statuses</option>
+                <option value="IN">IN Only 🟢</option>
+                <option value="OUT">OUT Only 🔴</option>
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sort Order</label>
+              <button
+                type="button"
+                onClick={() => setSortOrder(sortOrder === 'DESC' ? 'ASC' : 'DESC')}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors">
+                <span>{sortOrder === 'DESC' ? '🔽 Newest First' : '🔼 Oldest First'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end pt-2 sm:pt-0">
+            <button
+              onClick={() => setSelectedDate(today)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border ${
+                selectedDate === today
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+              }`}>
+              📍 Today
+            </button>
+            {(selectedEmployee || statusFilter || selectedDate !== today) && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-colors">
+                🔄 Reset Filters
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
+          <span>⚠️</span> {error}
+        </div>
+      )}
+
+      {/* Main Table Area */}
+      <div className="border border-slate-100 rounded-2xl overflow-hidden">
+        {loading ? (
+          <div className="py-12 flex items-center justify-center gap-3">
+            <div className="w-8 h-8 border-3 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+            <span className="text-slate-500 text-xs font-medium">Fetching attendance logs...</span>
+          </div>
+        ) : (
+          <Table
+            columns={tableColumns}
+            data={currentLogs}
+            emptyMessage={`No attendance logs recorded for ${selectedDate}`}
+          />
+        )}
+
+        {/* Pagination Controls */}
         {logs.length > 0 && (
-          <div className="border-t border-slate-100 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+          <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-4 text-slate-600">
               <span>
-                Showing <span className="font-semibold text-slate-900">{indexOfFirstItem + 1}</span> to{' '}
-                <span className="font-semibold text-slate-900">
-                  {Math.min(indexOfLastItem, totalItems)}
-                </span>{' '}
-                of <span className="font-semibold text-slate-900">{totalItems}</span> records
+                Showing <strong className="text-slate-900">{indexOfFirstItem + 1}</strong> to{' '}
+                <strong className="text-slate-900">{Math.min(indexOfLastItem, totalCount)}</strong> of{' '}
+                <strong className="text-slate-900">{totalCount}</strong> logs
               </span>
+
               <div className="flex items-center gap-2">
-                <label htmlFor="dailyLogsItemsPerPage" className="text-xs text-slate-500 font-medium">Rows per page:</label>
+                <span className="text-slate-500">Rows:</span>
                 <select
-                  id="dailyLogsItemsPerPage"
                   value={itemsPerPage}
                   onChange={(e) => {
                     setItemsPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                >
+                  className="px-2 py-1 bg-white border border-slate-300 rounded-lg font-semibold text-slate-800 focus:outline-none">
                   <option value={5}>5</option>
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -394,28 +410,26 @@ const DailyLogs = () => {
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-sm"
-              >
+                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 text-slate-700 font-semibold rounded-lg transition-colors">
                 Previous
               </button>
 
               {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
-                .map((page, idx, array) => {
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                .map((p, idx, array) => {
                   const prevPage = array[idx - 1];
-                  const showEllipsis = prevPage && page - prevPage > 1;
+                  const showEllipsis = prevPage && p - prevPage > 1;
                   return (
-                    <React.Fragment key={page}>
-                      {showEllipsis && <span className="px-2 text-xs text-slate-400">...</span>}
+                    <React.Fragment key={p}>
+                      {showEllipsis && <span className="px-1 text-slate-400 font-bold">...</span>}
                       <button
-                        onClick={() => setCurrentPage(page)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                          currentPage === page
+                        onClick={() => setCurrentPage(p)}
+                        className={`px-3 py-1.5 font-bold rounded-lg transition-all ${
+                          currentPage === p
                             ? 'bg-slate-900 text-white shadow-sm'
-                            : 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        {page}
+                            : 'bg-white border border-slate-300 hover:bg-slate-100 text-slate-700'
+                        }`}>
+                        {p}
                       </button>
                     </React.Fragment>
                   );
@@ -424,8 +438,7 @@ const DailyLogs = () => {
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-sm"
-              >
+                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 text-slate-700 font-semibold rounded-lg transition-colors">
                 Next
               </button>
             </div>

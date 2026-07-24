@@ -10,12 +10,17 @@ const verifyAdminToken = (req, res, next) => {
     
     const token = authHeader.substring(7);
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
     
-    req.admin = {
+    const adminObj = {
       id: decoded.id,
-      username: decoded.username
+      username: decoded.username,
+      position: decoded.position || (decoded.id === 1 || decoded.username === 'admin' ? 'Superadmin' : 'Admin'),
+      type: decoded.type
     };
+
+    req.admin = adminObj;
+    req.user = adminObj;
     
     next();
   } catch (error) {

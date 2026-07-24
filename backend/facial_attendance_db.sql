@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `admins` (
   `id` int NOT NULL AUTO_INCREMENT,
   `username` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `position` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Admin',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
@@ -41,8 +42,8 @@ CREATE TABLE IF NOT EXISTS `admins` (
 -- Dumping data for table `admins`
 --
 
-INSERT INTO `admins` (`id`, `username`, `password`, `created_at`) VALUES
-(1, 'admin', '$2b$10$piY8e1UIUSGLOeykSkp0gOCwRWrJLbibhq3XPpZ36bi/Rrgr74p6a', '2026-07-20 00:22:32');
+INSERT INTO `admins` (`id`, `username`, `password`, `position`, `created_at`) VALUES
+(1, 'admin', '$2b$10$piY8e1UIUSGLOeykSkp0gOCwRWrJLbibhq3XPpZ36bi/Rrgr74p6a', 'Superadmin', '2026-07-20 00:22:32');
 
 -- --------------------------------------------------------
 

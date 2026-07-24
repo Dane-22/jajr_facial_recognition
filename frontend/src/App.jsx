@@ -56,7 +56,7 @@ function MainApp() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Face Recognition Attendance</h1>
+                <h1 className="text-xl font-bold text-gray-900">JAJR Face Recognition Attendance</h1>
                 <p className="text-sm text-gray-500">Automated attendance system for JAJR</p>
               </div>
             </div>

@@ -8,7 +8,7 @@ const AuditLogs = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Filters
   const [actionFilter, setActionFilter] = useState('');
   const [entityTypeFilter, setEntityTypeFilter] = useState('');
@@ -17,7 +17,7 @@ const AuditLogs = () => {
   const [endDate, setEndDate] = useState('');
   const [sortBy, setSortBy] = useState('timestamp');
   const [sortOrder, setSortOrder] = useState('DESC');
-  
+
   // Pagination & Rate Limiting
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -59,7 +59,7 @@ const AuditLogs = () => {
       params.append('sortOrder', sortOrder);
       params.append('page', page);
       params.append('limit', itemsPerPage);
-      
+
       const response = await fetch(`${API_URL}/audit?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -180,8 +180,8 @@ const AuditLogs = () => {
   const tableColumns = [
     { header: 'ID', key: 'id' },
     { header: 'User', key: 'user_name' },
-    { 
-      header: 'User Type', 
+    {
+      header: 'User Type',
       key: 'user_type',
       render: (value) => (
         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${value === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
@@ -189,8 +189,8 @@ const AuditLogs = () => {
         </span>
       )
     },
-    { 
-      header: 'Action', 
+    {
+      header: 'Action',
       key: 'action',
       render: (value) => (
         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getActionBadgeColor(value)}`}>
@@ -201,8 +201,8 @@ const AuditLogs = () => {
     { header: 'Entity Type', key: 'entity_type' },
     { header: 'Entity ID', key: 'entity_id' },
     { header: 'IP Address', key: 'ip_address' },
-    { 
-      header: 'Timestamp', 
+    {
+      header: 'Timestamp',
       key: 'timestamp',
       render: (value) => formatTimestamp(value)
     }
@@ -233,7 +233,7 @@ const AuditLogs = () => {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          {isExporting ? 'Exporting...' : 'Export CSV'}
+          {isExporting ? 'Exporting...' : 'Export '}
         </button>
       </div>
 
@@ -367,11 +367,11 @@ const AuditLogs = () => {
                 columns={tableColumns}
                 data={logs}
                 emptyMessage="No audit logs found"
-                emptyIcon={emptyIcon}/>
+                emptyIcon={emptyIcon} />
             </div>
           )}
         </div>
-        
+
         {/* Pagination Bar */}
         {displayTotal > 0 && (
           <div className="border-t border-slate-100 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -421,11 +421,10 @@ const AuditLogs = () => {
                       {showEllipsis && <span className="px-2 text-xs text-slate-400">...</span>}
                       <button
                         onClick={() => setPage(p)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                          page === p
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${page === p
                             ? 'bg-slate-900 text-white shadow-sm'
                             : 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
-                        }`}
+                          }`}
                       >
                         {p}
                       </button>

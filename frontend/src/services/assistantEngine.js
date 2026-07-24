@@ -114,6 +114,14 @@ export async function processAssistantQuery(query = '', currentTab = 'dashboard'
     };
   }
 
+  if (/(admin management|manage admin|add admin|superadmin|create admin|admin user)/i.test(normalized)) {
+    return {
+      text: "Opening **Admin Management** where Superadmins can create, edit, or remove administrative accounts...",
+      action: { type: 'SWITCH_TAB', payload: 'admin-management' },
+      suggestedChips: ["➕ Add New Admin", "⚙️ Settings", "📊 Dashboard"],
+    };
+  }
+
   if (/(setting|config|change password|password|camera resolution|work shift|shift time)/i.test(normalized)) {
     return {
       text: "Opening **System Settings** where you can configure facial recognition, work shift rules, & change your admin password...",
