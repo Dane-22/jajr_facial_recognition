@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Jul 22, 2026 at 05:42 AM
+-- Generation Time: Jul 24, 2026 at 03:05 AM
 -- Server version: 9.1.0
 -- PHP Version: 8.3.14
 
@@ -30,8 +30,8 @@ SET time_zone = "+00:00";
 DROP TABLE IF EXISTS `admins`;
 CREATE TABLE IF NOT EXISTS `admins` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `username` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
@@ -54,24 +54,25 @@ DROP TABLE IF EXISTS `attendance_logs`;
 CREATE TABLE IF NOT EXISTS `attendance_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `status` enum('IN','OUT') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('IN','OUT') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_timestamp` (`timestamp`),
   KEY `idx_attendance_user_timestamp` (`user_id`,`timestamp`),
   KEY `idx_attendance_user_id` (`user_id`),
   KEY `idx_attendance_timestamp` (`timestamp`),
-  KEY `idx_attendance_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=73 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_attendance_status` (`status`),
+  KEY `idx_attendance_user_status_ts` (`user_id`,`status`,`timestamp`)
+) ENGINE=InnoDB AUTO_INCREMENT=80 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `attendance_logs`
 --
 
 INSERT INTO `attendance_logs` (`id`, `user_id`, `status`, `timestamp`) VALUES
-(56, 4, 'IN', '2026-07-20 09:01:59'),
-(57, 4, 'OUT', '2026-07-21 00:04:36'),
-(70, 4, 'IN', '2026-07-21 03:35:58');
+(75, 4, 'IN', '2026-07-23 02:30:24'),
+(79, 4, 'IN', '2026-07-24 02:03:32'),
+(78, 4, 'OUT', '2026-07-23 08:38:13');
 
 -- --------------------------------------------------------
 
@@ -83,21 +84,102 @@ DROP TABLE IF EXISTS `audit_logs`;
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
-  `user_type` enum('admin','employee') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `action` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `entity_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_type` enum('admin','employee') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `entity_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `entity_id` int DEFAULT NULL,
   `old_values` json DEFAULT NULL,
   `new_values` json DEFAULT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `timestamp` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_audit_user` (`user_id`),
   KEY `idx_audit_action` (`action`),
   KEY `idx_audit_entity` (`entity_type`,`entity_id`),
-  KEY `idx_audit_timestamp` (`timestamp`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_audit_timestamp` (`timestamp`),
+  KEY `idx_audit_action_ts` (`action`,`timestamp`)
+) ENGINE=InnoDB AUTO_INCREMENT=75 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `audit_logs`
+--
+
+INSERT INTO `audit_logs` (`id`, `user_id`, `user_type`, `action`, `entity_type`, `entity_id`, `old_values`, `new_values`, `ip_address`, `user_agent`, `timestamp`) VALUES
+(1, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-22 16:59:26'),
+(2, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-23 10:15:54'),
+(3, 4, 'employee', 'CHECK_IN', 'attendance', 73, NULL, '{\"status\": \"IN\", \"userId\": 4, \"timestamp\": \"2026-07-23T02:27:54.012Z\"}', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-PH) WindowsPowerShell/5.1.26100.8875', '2026-07-23 10:27:54'),
+(4, 4, 'employee', 'CHECK_IN', 'attendance', 74, NULL, '{\"status\": \"IN\", \"userId\": 4, \"timestamp\": \"2026-07-23T02:29:17.020Z\"}', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-23 10:29:17'),
+(5, 4, 'employee', 'CHECK_IN', 'attendance', 75, NULL, '{\"status\": \"IN\", \"userId\": 4, \"timestamp\": \"2026-07-23T02:30:24.015Z\"}', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-23 10:30:24'),
+(6, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-23 10:30:42'),
+(7, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:53'),
+(8, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:53'),
+(9, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:54'),
+(10, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:54'),
+(11, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:55'),
+(12, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:55'),
+(13, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:56'),
+(14, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:57'),
+(15, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:57'),
+(16, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:57'),
+(17, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:59'),
+(18, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 10:54:59'),
+(19, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:01:49'),
+(20, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:01:54'),
+(21, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:02:09'),
+(22, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:02:12'),
+(23, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:02:34'),
+(24, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:02:35'),
+(25, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:03:29'),
+(26, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:03:29'),
+(27, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:03:29'),
+(28, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36', '2026-07-23 11:03:29'),
+(29, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:52'),
+(30, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:53'),
+(31, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:53'),
+(32, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:54'),
+(33, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:55'),
+(34, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:56'),
+(35, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:56'),
+(36, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:56'),
+(37, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:57'),
+(38, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:58'),
+(39, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:58'),
+(40, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:59'),
+(41, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Mobile Safari/537.36', '2026-07-23 11:03:59'),
+(42, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:15'),
+(43, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:15'),
+(44, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:15'),
+(45, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(46, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(47, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(48, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(49, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(50, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(51, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(52, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(53, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(54, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(55, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(56, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(57, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(58, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(59, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(60, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(61, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(62, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(63, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(64, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:16'),
+(65, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', NULL, '2026-07-23 11:17:17'),
+(66, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-23 16:36:38'),
+(67, 4, 'employee', 'CHECK_OUT', 'attendance', 78, NULL, '{\"status\": \"OUT\", \"userId\": 4, \"timestamp\": \"2026-07-23T08:38:13.010Z\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-23 16:38:13'),
+(68, 4, 'employee', 'CHECK_IN', 'attendance', 79, NULL, '{\"status\": \"IN\", \"userId\": 4, \"timestamp\": \"2026-07-24T02:03:32.209Z\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 10:03:32'),
+(69, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 10:03:40'),
+(70, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 10:13:51'),
+(71, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-24 10:18:40'),
+(72, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::ffff:127.0.0.1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-24 10:19:52'),
+(73, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 10:43:45'),
+(74, 1, 'admin', 'LOGIN', 'admin', 1, NULL, '{\"username\": \"admin\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 10:45:52');
 
 -- --------------------------------------------------------
 
@@ -109,14 +191,14 @@ DROP TABLE IF EXISTS `notifications`;
 CREATE TABLE IF NOT EXISTS `notifications` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
-  `type` enum('email','sms','in_app') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `subject` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `message` text COLLATE utf8mb4_unicode_ci,
-  `status` enum('pending','sent','failed') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` enum('email','sms','in_app') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `subject` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `status` enum('pending','sent','failed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -131,7 +213,7 @@ CREATE TABLE IF NOT EXISTS `notification_preferences` (
   `sms_enabled` tinyint(1) DEFAULT '0',
   `in_app_enabled` tinyint(1) DEFAULT '1',
   PRIMARY KEY (`user_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -142,9 +224,9 @@ CREATE TABLE IF NOT EXISTS `notification_preferences` (
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'user',
-  `face_descriptor` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `role` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'user',
+  `face_descriptor` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_users_name` (`name`),

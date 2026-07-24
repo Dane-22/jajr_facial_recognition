@@ -108,9 +108,8 @@ const AdminLogin = () => {
                   data-testid="username-input"
                   value={formData.username}
                   onChange={handleChange}
-                  className={`w-full pl-12 pr-4 py-3 bg-slate-900/50 border ${
-                    error && !formData.username ? 'border-red-500/50 focus:border-red-500' : 'border-slate-600 focus:border-indigo-500'
-                  } rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200`}
+                  className={`w-full pl-12 pr-4 py-3 bg-slate-900/50 border ${error && !formData.username ? 'border-red-500/50 focus:border-red-500' : 'border-slate-600 focus:border-indigo-500'
+                    } rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200`}
                   placeholder="Enter your username"
                   required
                 />
@@ -135,9 +134,8 @@ const AdminLogin = () => {
                   data-testid="password-input"
                   value={formData.password}
                   onChange={handleChange}
-                  className={`w-full pl-12 pr-4 py-3 bg-slate-900/50 border ${
-                    error && !formData.password ? 'border-red-500/50 focus:border-red-500' : 'border-slate-600 focus:border-indigo-500'
-                  } rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200`}
+                  className={`w-full pl-12 pr-4 py-3 bg-slate-900/50 border ${error && !formData.password ? 'border-red-500/50 focus:border-red-500' : 'border-slate-600 focus:border-indigo-500'
+                    } rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200`}
                   placeholder="Enter your password"
                   required
                 />
@@ -170,9 +168,7 @@ const AdminLogin = () => {
 
           {/* Footer Info */}
           <div className="mt-6 pt-6 border-t border-slate-700/50 text-center space-y-4">
-            <p className="text-slate-500 text-sm">
-              Default credentials: <span className="text-slate-400 font-medium">admin / password123</span>
-            </p>
+
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-300 text-sm transition-colors duration-200">
@@ -186,7 +182,7 @@ const AdminLogin = () => {
 
         {/* Copyright */}
         <p className="text-center text-slate-500 text-sm mt-8">
-          © 2024 Face Recognition Attendance System
+          © 202 Face Recognition Attendance System
         </p>
       </div>
     </div>

@@ -57,10 +57,10 @@ function MainApp() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Face Recognition Attendance</h1>
-                <p className="text-sm text-gray-500">Automated attendance system</p>
+                <p className="text-sm text-gray-500">Automated attendance system for JAJR</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <Link
                 to="/admin/login"
@@ -68,11 +68,10 @@ function MainApp() {
                 Admin Portal
               </Link>
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  systemStatus === 'loading' ? 'bg-yellow-500 animate-pulse' :
+                <div className={`w-2 h-2 rounded-full ${systemStatus === 'loading' ? 'bg-yellow-500 animate-pulse' :
                   systemStatus === 'ready' ? 'bg-green-500' :
-                  'bg-red-500'
-                }`} />
+                    'bg-red-500'
+                  }`} />
                 <span className="text-sm font-medium text-gray-600 capitalize">
                   {systemStatus}
                 </span>
@@ -114,7 +113,7 @@ function MainApp() {
                 <CameraFeed
                   onFaceDetected={handleFaceDetected}
                   faceMatcher={faceMatcher}
-                  isModelsLoaded={true}/>
+                  isModelsLoaded={true} />
               )}
             </div>
 
@@ -149,7 +148,7 @@ function MainApp() {
           <div>
             <AttendanceCard
               systemStatus={systemStatus}
-              lastDetection={lastDetection}/>
+              lastDetection={lastDetection} />
           </div>
         </div>
       </main>
@@ -157,7 +156,7 @@ function MainApp() {
       <footer className="bg-white/80 backdrop-blur-sm border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
-            © 2024 Face Recognition Attendance System. Built with React, Tailwind CSS, and face-api.js
+            © 2026 Face Recognition Attendance System. Built with love by JAJR
           </p>
         </div>
       </footer>

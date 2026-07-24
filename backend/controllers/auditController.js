@@ -17,6 +17,48 @@ const getAuditLogs = async (req, res) => {
     
     const offset = (page - 1) * limit;
     
+    let whereClause = ' WHERE 1=1';
+    const params = [];
+    
+    // Filter by action
+    if (action) {
+      whereClause += ' AND audit_logs.action = ?';
+      params.push(action);
+    }
+    
+    // Filter by entity type
+    if (entityType) {
+      whereClause += ' AND audit_logs.entity_type = ?';
+      params.push(entityType);
+    }
+    
+    // Filter by user ID
+    if (userId) {
+      whereClause += ' AND audit_logs.user_id = ?';
+      params.push(userId);
+    }
+    
+    // Filter by user type
+    if (userType) {
+      whereClause += ' AND audit_logs.user_type = ?';
+      params.push(userType);
+    }
+    
+    // Filter by date range
+    if (startDate) {
+      whereClause += ' AND audit_logs.timestamp >= ?';
+      params.push(startDate);
+    }
+    
+    if (endDate) {
+      whereClause += ' AND audit_logs.timestamp <= ?';
+      params.push(endDate);
+    }
+    
+    // Get total count
+    const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`, params);
+    const total = countResult[0].total;
+
     let query = `
       SELECT audit_logs.*, 
         CASE 
@@ -25,49 +67,8 @@ const getAuditLogs = async (req, res) => {
           ELSE 'Unknown'
         END as user_name
       FROM audit_logs
-      WHERE 1=1
+      ${whereClause}
     `;
-    const params = [];
-    
-    // Filter by action
-    if (action) {
-      query += ' AND audit_logs.action = ?';
-      params.push(action);
-    }
-    
-    // Filter by entity type
-    if (entityType) {
-      query += ' AND audit_logs.entity_type = ?';
-      params.push(entityType);
-    }
-    
-    // Filter by user ID
-    if (userId) {
-      query += ' AND audit_logs.user_id = ?';
-      params.push(userId);
-    }
-    
-    // Filter by user type
-    if (userType) {
-      query += ' AND audit_logs.user_type = ?';
-      params.push(userType);
-    }
-    
-    // Filter by date range
-    if (startDate) {
-      query += ' AND audit_logs.timestamp >= ?';
-      params.push(startDate);
-    }
-    
-    if (endDate) {
-      query += ' AND audit_logs.timestamp <= ?';
-      params.push(endDate);
-    }
-    
-    // Get total count
-    const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM');
-    const [countResult] = await pool.query(countQuery, params);
-    const total = countResult[0].total;
     
     // Sort
     const allowedSortFields = ['id', 'action', 'entity_type', 'timestamp', 'user_id'];
@@ -77,9 +78,10 @@ const getAuditLogs = async (req, res) => {
     
     query += ` ORDER BY audit_logs.${sortField} ${sortDirection}`;
     query += ` LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), offset);
     
-    const [logs] = await pool.query(query, params);
+    const queryParams = [...params, parseInt(limit), offset];
+    
+    const [logs] = await pool.query(query, queryParams);
     
     res.status(200).json({
       logs,

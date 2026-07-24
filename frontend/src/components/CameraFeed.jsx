@@ -12,16 +12,16 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
   const [isMotionDetectionActive, setIsMotionDetectionActive] = useState(false);
   const detectionIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
-  
+
   // Confidence thresholds for face recognition
   const HIGH_CONFIDENCE_THRESHOLD = 0.4; // Log attendance
   const LOW_CONFIDENCE_THRESHOLD = 0.6; // Show warning but don't log
-  
+
   // Warning state for confidence issues
   const [warningMessage, setWarningMessage] = useState(null);
   const [warningType, setWarningType] = useState(null); // 'low-confidence' or 'unknown'
   const warningTimeoutRef = useRef(null);
-  
+
   // Dwell time tracking for attendance logging
   const MIN_DWELL_TIME = 3000; // 3 seconds minimum dwell time
   const [dwellStartTime, setDwellStartTime] = useState(null);
@@ -36,12 +36,12 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
   const showWarning = useCallback((message, type) => {
     setWarningMessage(message);
     setWarningType(type);
-    
+
     // Clear existing timeout
     if (warningTimeoutRef.current) {
       clearTimeout(warningTimeoutRef.current);
     }
-    
+
     // Auto-dismiss after 3 seconds
     warningTimeoutRef.current = setTimeout(() => {
       setWarningMessage(null);
@@ -71,10 +71,10 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     if (isDwelling && currentUserIdRef.current === userId) {
       return;
     }
-    
+
     // Clear any existing dwell tracking
     resetDwellTracking();
-    
+
     // Start new dwell tracking
     setDwellStartTime(Date.now());
     setIsDwelling(true);
@@ -117,9 +117,9 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     try {
       setCameraStatus('initializing');
       setCameraError(null);
-      
+
       const stream = await cameraManager.ensureActive();
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setIsStreamActive(true);
@@ -194,7 +194,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     // Find matches for each detected face
     resizedDetections.forEach((detection) => {
       const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-      
+
       // Determine confidence level and box color
       let boxColor;
       if (bestMatch.distance < HIGH_CONFIDENCE_THRESHOLD) {
@@ -204,7 +204,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
       } else {
         boxColor = '#ff0000'; // Red - unknown
       }
-      
+
       // Draw detection box
       const box = detection.detection.box;
       const drawBox = new faceapi.draw.DrawBox(box, {
@@ -219,7 +219,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
         // High confidence - start dwell tracking
         const userId = bestMatch.label;
         startDwellTracking(userId);
-        
+
         // Check if minimum dwell time has been reached
         if (dwellStartTime && (Date.now() - dwellStartTime >= MIN_DWELL_TIME)) {
           // Dwell time reached - log attendance
@@ -246,7 +246,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
         );
       }
     });
-    
+
     // If no faces detected, reset dwell tracking
     if (detections.length === 0 && isDwelling) {
       resetDwellTracking();
@@ -338,9 +338,9 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
       case 'initializing':
         return { color: 'bg-yellow-500 animate-pulse', text: 'Initializing...' };
       case 'active':
-        return { 
-          color: 'bg-green-500 animate-pulse', 
-          text: countdown > 0 ? `Camera Active (${countdown}s)` : 'Camera Active' 
+        return {
+          color: 'bg-green-500 animate-pulse',
+          text: countdown > 0 ? `Camera Active (${countdown}s)` : 'Camera Active'
         };
       case 'motion_detection':
         return { color: 'bg-blue-500 animate-pulse', text: 'Motion Detection Active' };
@@ -440,11 +440,11 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
             if (videoRef.current) {
               videoRef.current.play();
             }
-          }}/>
+          }} />
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full pointer-events-none"/>
-        
+          className="absolute top-0 left-0 w-full h-full pointer-events-none" />
+
         {/* Status indicator */}
         <div className="absolute top-4 left-4 flex items-center gap-2">
           <div className={`w-3 h-3 rounded-full ${statusInfo.color}`} />
@@ -456,11 +456,10 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
         {/* Confidence warning */}
         {warningMessage && (
           <div className="absolute top-4 right-4 max-w-xs z-20">
-            <div className={`px-4 py-3 rounded-xl shadow-xl backdrop-blur-md ${
-              warningType === 'low-confidence' 
-                ? 'bg-amber-500/90 text-white' 
+            <div className={`px-4 py-3 rounded-xl shadow-xl backdrop-blur-md ${warningType === 'low-confidence'
+                ? 'bg-amber-500/90 text-white'
                 : 'bg-rose-500/90 text-white'
-            }`}>
+              }`}>
               <div className="flex items-start gap-2">
                 {warningType === 'low-confidence' ? (
                   <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -484,18 +483,16 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
               <div className="flex flex-col items-center gap-2">
                 <div className="text-white text-xs sm:text-sm font-medium">Hold position for attendance</div>
                 <div className="flex items-center gap-3">
-                  <div className={`text-3xl font-bold ${
-                    dwellCountdown > 2 ? 'text-red-400' : 
-                    dwellCountdown > 1 ? 'text-yellow-400' : 'text-green-400'
-                  }`}>
+                  <div className={`text-3xl font-bold ${dwellCountdown > 2 ? 'text-red-400' :
+                      dwellCountdown > 1 ? 'text-yellow-400' : 'text-green-400'
+                    }`}>
                     {dwellCountdown}
                   </div>
                   <div className="w-24 h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-1000 ${
-                        dwellCountdown > 2 ? 'bg-red-400' : 
-                        dwellCountdown > 1 ? 'bg-yellow-400' : 'bg-green-400'
-                      }`}
+                    <div
+                      className={`h-full transition-all duration-1000 ${dwellCountdown > 2 ? 'bg-red-400' :
+                          dwellCountdown > 1 ? 'bg-yellow-400' : 'bg-green-400'
+                        }`}
                       style={{ width: `${((MIN_DWELL_TIME / 1000) - dwellCountdown) / (MIN_DWELL_TIME / 1000) * 100}%` }}
                     />
                   </div>
@@ -552,7 +549,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
       <div className="mt-4 text-center text-gray-600 text-sm">
         <p>Position your face clearly in front of the camera for attendance scanning</p>
         <p className="text-gray-400 text-xs mt-1">
-          Camera will automatically stop after 30 seconds of inactivity to save battery
+          Camera will automatically stop after 5 seconds of inactivity to save battery
         </p>
       </div>
     </div>

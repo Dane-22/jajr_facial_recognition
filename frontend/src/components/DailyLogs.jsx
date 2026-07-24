@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useSocket from '../hooks/useSocket';
 import Table from './UI/Table';
 
@@ -15,6 +15,12 @@ const DailyLogs = () => {
   const [liveCount, setLiveCount] = useState(0);
   const [sortBy, setSortBy] = useState('timestamp');
   const [sortOrder, setSortOrder] = useState('DESC');
+
+  // Pagination & Rate Limiting
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isExporting, setIsExporting] = useState(false);
+  const lastFetchRef = useRef(0);
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
@@ -41,6 +47,7 @@ const DailyLogs = () => {
   useSocket('attendance:new', handleNewAttendance, isLoggedIn);
 
   useEffect(() => {
+    setCurrentPage(1);
     const token = localStorage.getItem('admin_token');
     if (token) {
       fetchDailyLogs(token);
@@ -64,6 +71,13 @@ const DailyLogs = () => {
   };
 
   const fetchDailyLogs = async (token) => {
+    const now = Date.now();
+    // Rate limit throttle check (min 300ms between calls)
+    if (now - lastFetchRef.current < 300) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     setLoading(true);
     setError('');
     try {
@@ -82,6 +96,12 @@ const DailyLogs = () => {
           }
         }
       );
+
+      if (response.status === 429) {
+        setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
+        setLogs([]);
+        return;
+      }
 
       const data = await response.json();
 
@@ -121,6 +141,11 @@ const DailyLogs = () => {
   };
 
   const exportToCSV = () => {
+    if (logs.length === 0 || isExporting) return;
+
+    setIsExporting(true);
+    setTimeout(() => setIsExporting(false), 2000);
+
     const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp'];
     const rows = logs.map(log => [
       log.id,
@@ -185,8 +210,15 @@ const DailyLogs = () => {
     </svg>
   );
 
+  // Pagination calculations
+  const totalItems = logs.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentLogs = logs.slice(indexOfFirstItem, indexOfLastItem);
+
   return (
-    <div className="w-full h-full flex flex-col m-0 p-0 bg-white overflow-hidden">
+    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm">
       {/* Compact Integrated Header */}
       <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-0 p-0">
         <div>
@@ -255,12 +287,12 @@ const DailyLogs = () => {
             type="button"
             data-testid="daily-logs-export-button"
             onClick={exportToCSV}
-            disabled={logs.length === 0}
+            disabled={logs.length === 0 || isExporting}
             className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Export CSV
+            {isExporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
       </div>
@@ -297,18 +329,18 @@ const DailyLogs = () => {
       </div>
 
       {/* Compact Table Area */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full m-0 p-0">
+      <div className="w-full m-0 p-0">
         <div className="border-b border-slate-100 px-4 py-4">
           <h3 className="text-sm font-bold text-slate-900">Attendance Records</h3>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto w-full m-0 p-0">
+        <div className="w-full m-0 p-0">
           {loading ? (
-            <div className="flex h-full items-center justify-center">
+            <div className="flex py-12 items-center justify-center">
               <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-700 rounded-full animate-spin mr-4" />
               <p className="text-slate-500 text-sm font-medium">Loading attendance logs...</p>
             </div>
           ) : error ? (
-            <div className="flex h-full flex-col items-center justify-center">
+            <div className="flex py-12 flex-col items-center justify-center">
               <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-3">
                 <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -317,16 +349,88 @@ const DailyLogs = () => {
               <p className="text-slate-500 text-sm font-medium">{error}</p>
             </div>
           ) : (
-            <div className="h-full w-full">
+            <div className="w-full">
               <Table
                 data-testid="daily-logs-table"
                 columns={tableColumns}
-                data={logs}
+                data={currentLogs}
                 emptyMessage="No attendance logs found for this date"
                 emptyIcon={emptyIcon}/>
             </div>
           )}
         </div>
+
+        {/* Pagination Bar */}
+        {logs.length > 0 && (
+          <div className="border-t border-slate-100 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+              <span>
+                Showing <span className="font-semibold text-slate-900">{indexOfFirstItem + 1}</span> to{' '}
+                <span className="font-semibold text-slate-900">
+                  {Math.min(indexOfLastItem, totalItems)}
+                </span>{' '}
+                of <span className="font-semibold text-slate-900">{totalItems}</span> records
+              </span>
+              <div className="flex items-center gap-2">
+                <label htmlFor="dailyLogsItemsPerPage" className="text-xs text-slate-500 font-medium">Rows per page:</label>
+                <select
+                  id="dailyLogsItemsPerPage"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-sm"
+              >
+                Previous
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                .map((page, idx, array) => {
+                  const prevPage = array[idx - 1];
+                  const showEllipsis = prevPage && page - prevPage > 1;
+                  return (
+                    <React.Fragment key={page}>
+                      {showEllipsis && <span className="px-2 text-xs text-slate-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                          currentPage === page
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-sm"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

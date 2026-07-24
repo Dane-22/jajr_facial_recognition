@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DailyLogs from './DailyLogs';
-import RegisterFace from './RegisterFace';
 import AttendanceAudit from './AttendanceAudit';
 import EmployeeList from './EmployeeList';
 import AttendanceReports from './AttendanceReports';
 import AuditLogs from './AuditLogs';
 import DashboardCharts from './DashboardCharts';
+import AIChatWidget from './AIChatWidget';
+import Settings from './Settings';
 
 const AdminLayout = () => {
-  const [activeTab, setActiveTab] = useState('logs');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -26,6 +27,15 @@ const AdminLayout = () => {
 
   const navItems = [
     {
+      id: 'dashboard',
+      label: 'Dashboard Charts',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      ),
+    },
+    {
       id: 'logs',
       label: 'Daily Logs',
       icon: (
@@ -36,19 +46,10 @@ const AdminLayout = () => {
     },
     {
       id: 'employees',
-      label: 'Employee List',
+      label: 'Employee Directory',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'register',
-      label: 'Register Face',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
     },
@@ -80,11 +81,12 @@ const AdminLayout = () => {
       ),
     },
     {
-      id: 'dashboard',
-      label: 'Dashboard Charts',
+      id: 'settings',
+      label: 'Settings',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
     },
@@ -105,19 +107,20 @@ const AdminLayout = () => {
       case 'logs':
         return <DailyLogs />;
       case 'employees':
-        return <EmployeeList />;
       case 'register':
-        return <RegisterFace />;
+        return <EmployeeList />;
       case 'audit':
         return <AttendanceAudit />;
       case 'reports':
         return <AttendanceReports />;
       case 'audit-logs':
         return <AuditLogs />;
+      case 'settings':
+        return <Settings />;
       case 'dashboard':
         return <DashboardCharts />;
       default:
-        return <DailyLogs />;
+        return <DashboardCharts />;
     }
   };
 
@@ -162,7 +165,7 @@ const AdminLayout = () => {
           fixed top-0 left-0 h-screen w-64 shrink-0 bg-white z-50 border-r border-slate-100 flex flex-col
           transform transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          md:translate-x-0 md:static md:z-auto md:h-screen
+          md:translate-x-0
         `}>
         {/* Sidebar Header */}
         <div className="hidden md:flex items-center gap-3 px-6 py-5 border-b border-slate-100">
@@ -206,10 +209,9 @@ const AdminLayout = () => {
               onClick={() => handleNavClick(item.id)}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
-                ${
-                  activeTab === item.id
-                    ? 'bg-slate-200 text-slate-900 font-semibold border border-transparent'
-                    : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                ${activeTab === item.id
+                  ? 'bg-slate-200 text-slate-900 font-semibold border border-transparent'
+                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
                 }
               `}>
               <span className={`w-5 h-5 ${activeTab === item.id ? 'text-slate-900' : 'text-slate-600'}`}>
@@ -235,7 +237,7 @@ const AdminLayout = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 bg-slate-50 flex flex-col min-h-screen w-full p-6 md:p-8 overflow-hidden">
+      <main className="flex-1 bg-slate-50 flex flex-col min-h-screen w-full p-6 md:p-8 md:ml-64 overflow-x-hidden">
         {/* Mobile Spacer for Fixed Header */}
         <div className="md:hidden h-16" />
 
@@ -244,6 +246,9 @@ const AdminLayout = () => {
           {renderContent()}
         </div>
       </main>
+
+      {/* Floating Zero-API AI Assistant Widget */}
+      <AIChatWidget activeTab={activeTab} onNavigate={handleNavClick} />
     </div>
   );
 };

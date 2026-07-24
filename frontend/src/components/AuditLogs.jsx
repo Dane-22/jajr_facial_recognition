@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Table from './UI/Table';
 
 const API_URL = 'http://localhost:5000/api';
@@ -18,10 +18,17 @@ const AuditLogs = () => {
   const [sortBy, setSortBy] = useState('timestamp');
   const [sortOrder, setSortOrder] = useState('DESC');
   
-  // Pagination
+  // Pagination & Rate Limiting
   const [page, setPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const lastFetchRef = useRef(0);
+
+  useEffect(() => {
+    setPage(1);
+  }, [actionFilter, entityTypeFilter, userTypeFilter, startDate, endDate, sortBy, sortOrder, itemsPerPage]);
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
@@ -29,9 +36,16 @@ const AuditLogs = () => {
       fetchAuditLogs(token);
       fetchAuditStats(token);
     }
-  }, [actionFilter, entityTypeFilter, userTypeFilter, startDate, endDate, sortBy, sortOrder, page]);
+  }, [actionFilter, entityTypeFilter, userTypeFilter, startDate, endDate, sortBy, sortOrder, page, itemsPerPage]);
 
   const fetchAuditLogs = async (token) => {
+    const now = Date.now();
+    // Rate limit throttle check (min 300ms between calls)
+    if (now - lastFetchRef.current < 300) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     setLoading(true);
     setError('');
     try {
@@ -44,7 +58,7 @@ const AuditLogs = () => {
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
       params.append('page', page);
-      params.append('limit', 50);
+      params.append('limit', itemsPerPage);
       
       const response = await fetch(`${API_URL}/audit?${params.toString()}`, {
         headers: {
@@ -52,12 +66,21 @@ const AuditLogs = () => {
         }
       });
 
+      if (response.status === 429) {
+        setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
+        setLogs([]);
+        return;
+      }
+
       const data = await response.json();
 
       if (response.ok) {
-        setLogs(data.logs || []);
-        setTotal(data.pagination?.total || 0);
-        setTotalPages(data.pagination?.totalPages || 1);
+        const fetchedLogs = data.logs || [];
+        setLogs(fetchedLogs);
+        const totalCount = data.pagination?.total || data.total || data.count || fetchedLogs.length;
+        const pagesCount = data.pagination?.totalPages || data.totalPages || Math.max(1, Math.ceil(totalCount / itemsPerPage));
+        setTotal(totalCount);
+        setTotalPages(pagesCount);
       } else {
         setError(data.error || 'Failed to fetch audit logs');
       }
@@ -126,6 +149,11 @@ const AuditLogs = () => {
   };
 
   const exportToCSV = () => {
+    if (logs.length === 0 || isExporting) return;
+
+    setIsExporting(true);
+    setTimeout(() => setIsExporting(false), 2000);
+
     const headers = ['ID', 'User', 'User Type', 'Action', 'Entity Type', 'Entity ID', 'IP Address', 'Timestamp'];
     const rows = logs.map(log => [
       log.id,
@@ -186,8 +214,11 @@ const AuditLogs = () => {
     </svg>
   );
 
+  const displayTotal = total || logs.length;
+  const displayTotalPages = totalPages || Math.max(1, Math.ceil(displayTotal / itemsPerPage));
+
   return (
-    <div className="w-full h-full flex flex-col m-0 p-0 bg-white overflow-hidden">
+    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm">
       {/* Header */}
       <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-0 p-0">
         <div>
@@ -197,12 +228,12 @@ const AuditLogs = () => {
         <button
           type="button"
           onClick={exportToCSV}
-          disabled={logs.length === 0}
+          disabled={logs.length === 0 || isExporting}
           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          Export CSV
+          {isExporting ? 'Exporting...' : 'Export CSV'}
         </button>
       </div>
 
@@ -311,18 +342,18 @@ const AuditLogs = () => {
       </div>
 
       {/* Table */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full m-0 p-0">
+      <div className="w-full m-0 p-0">
         <div className="border-b border-slate-100 px-4 py-4">
-          <h3 className="text-sm font-bold text-slate-900">Audit Records ({total} total)</h3>
+          <h3 className="text-sm font-bold text-slate-900">Audit Records ({displayTotal} total)</h3>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto w-full m-0 p-0">
+        <div className="w-full m-0 p-0">
           {loading ? (
-            <div className="flex h-full items-center justify-center">
+            <div className="flex py-12 items-center justify-center">
               <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-700 rounded-full animate-spin mr-4" />
               <p className="text-slate-500 text-sm font-medium">Loading audit logs...</p>
             </div>
           ) : error ? (
-            <div className="flex h-full flex-col items-center justify-center">
+            <div className="flex py-12 flex-col items-center justify-center">
               <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-3">
                 <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -331,7 +362,7 @@ const AuditLogs = () => {
               <p className="text-slate-500 text-sm font-medium">{error}</p>
             </div>
           ) : (
-            <div className="h-full w-full">
+            <div className="w-full">
               <Table
                 columns={tableColumns}
                 data={logs}
@@ -341,23 +372,72 @@ const AuditLogs = () => {
           )}
         </div>
         
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="border-t border-slate-100 px-4 py-3 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              Page {page} of {totalPages} ({total} total)
-            </p>
-            <div className="flex items-center gap-2">
+        {/* Pagination Bar */}
+        {displayTotal > 0 && (
+          <div className="border-t border-slate-100 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+              <span>
+                Showing <span className="font-semibold text-slate-900">{(page - 1) * itemsPerPage + 1}</span> to{' '}
+                <span className="font-semibold text-slate-900">
+                  {Math.min(page * itemsPerPage, displayTotal)}
+                </span>{' '}
+                of <span className="font-semibold text-slate-900">{displayTotal}</span> records
+              </span>
+              <div className="flex items-center gap-2">
+                <label htmlFor="auditLogItemsPerPage" className="text-xs text-slate-500 font-medium">Rows per page:</label>
+                <select
+                  id="auditLogItemsPerPage"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors">
+                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-sm"
+              >
                 Previous
               </button>
+
+              {Array.from({ length: displayTotalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === displayTotalPages || Math.abs(p - page) <= 1)
+                .map((p, idx, array) => {
+                  const prevPage = array[idx - 1];
+                  const showEllipsis = prevPage && p - prevPage > 1;
+                  return (
+                    <React.Fragment key={p}>
+                      {showEllipsis && <span className="px-2 text-xs text-slate-400">...</span>}
+                      <button
+                        onClick={() => setPage(p)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                          page === p
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
               <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors">
+                onClick={() => setPage(p => Math.min(displayTotalPages, p + 1))}
+                disabled={page === displayTotalPages}
+                className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-medium rounded-lg transition-colors shadow-sm"
+              >
                 Next
               </button>
             </div>
