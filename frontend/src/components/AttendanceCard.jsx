@@ -17,6 +17,13 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
   const debounceTimers = useRef({}); // Track debounce timers per user
   const DEBOUNCE_DELAY = 2000; // 2 seconds debounce window
 
+  const processedDetectionRef = useRef(null);
+  const loggedUsersRef = useRef(loggedUsers);
+
+  useEffect(() => {
+    loggedUsersRef.current = loggedUsers;
+  }, [loggedUsers]);
+
   /**
    * Speak attendance notification using Web Speech API
    */
@@ -172,7 +179,12 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
    */
   useEffect(() => {
     if (lastDetection && lastDetection.confidence < 0.6) {
-      const { userId, name } = lastDetection;
+      // Check if we've already processed this specific detection event
+      if (lastDetection.timestamp && processedDetectionRef.current === lastDetection.timestamp) {
+        return;
+      }
+
+      const { userId, name, timestamp } = lastDetection;
       
       // Update last detection time for this user
       setUserLastDetected(prev => ({
@@ -180,16 +192,21 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         [userId]: Date.now()
       }));
 
-      // Check if user is already logged in current session
-      if (loggedUsers.has(userId)) {
+      // Check if user is already logged in current session using the ref
+      if (loggedUsersRef.current.has(userId)) {
         // User already logged, ignore this detection
         return;
+      }
+
+      // Mark this detection event as processed
+      if (timestamp) {
+        processedDetectionRef.current = timestamp;
       }
 
       // Log attendance for this user
       logAttendance(userId, name);
     }
-  }, [lastDetection, loggedUsers]);
+  }, [lastDetection]); // Note: loggedUsers is intentionally omitted to avoid stale state bugs
 
   /**
    * Cleanup logged users who haven't been detected for SESSION_TIMEOUT

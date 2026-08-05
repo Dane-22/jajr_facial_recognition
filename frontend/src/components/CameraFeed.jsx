@@ -133,9 +133,6 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     }
   }, []);
 
-  /**
-   * Stop webcam stream using CameraManager
-   */
   const stopVideo = useCallback(() => {
     cameraManager.stopCamera();
     if (videoRef.current && videoRef.current.srcObject) {
@@ -143,7 +140,8 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     }
     setIsStreamActive(false);
     setCameraStatus('idle');
-  }, []);
+    resetDwellTracking();
+  }, [resetDwellTracking]);
 
   /**
    * Detect faces in video stream
@@ -226,7 +224,8 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
           onFaceDetected({
             userId: bestMatch.label,
             confidence: bestMatch.distance,
-            name: bestMatch.label
+            name: bestMatch.label,
+            timestamp: Date.now()
           });
           resetDwellTracking();
         }
@@ -305,6 +304,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
       setIsMotionDetectionActive(true);
       setIsStreamActive(false);
       setCountdown(0);
+      resetDwellTracking();
     };
 
     const handleMotionDetected = () => {
@@ -328,7 +328,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
       cameraManager.off('cameraIdleStopped', handleCameraIdleStopped);
       cameraManager.off('motionDetected', handleMotionDetected);
     };
-  }, [startVideo, stopVideo]);
+  }, [startVideo, stopVideo, resetDwellTracking]);
 
   /**
    * Get status indicator color and text
