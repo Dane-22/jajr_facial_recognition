@@ -52,8 +52,8 @@ const EmployeeList = () => {
     let isMounted = true;
 
     const loadFaceApiModels = async () => {
-      // Only load models when camera is being used
-      if (!isCapturing) return;
+      // Only load models when the modal is open
+      if (!showModal) return;
 
       try {
         console.log('Loading face-api models...');
@@ -83,7 +83,7 @@ const EmployeeList = () => {
     return () => {
       isMounted = false;
     };
-  }, [isCapturing]);
+  }, [showModal]);
 
   const fetchEmployees = async () => {
     const now = Date.now();

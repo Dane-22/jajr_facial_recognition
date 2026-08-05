@@ -10,7 +10,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
   const [loggedUsers, setLoggedUsers] = useState(new Set()); // Track users logged in current session
   const [userLastDetected, setUserLastDetected] = useState({}); // Track last detection time per user
   const SESSION_TIMEOUT = 10000; // 10 seconds timeout
-  const MIN_TOGGLE_MINUTES = 15; // Minimum time between IN/OUT toggles
+  const MIN_TOGGLE_MINUTES = 1; // Minimum time between IN/OUT toggles
   
   // useRef for immediate synchronous tracking to prevent race conditions
   const pendingRequests = useRef(new Set()); // Track users with pending API calls
