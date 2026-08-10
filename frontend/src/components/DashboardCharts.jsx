@@ -65,6 +65,229 @@ const ChartCard = ({ title, children, t, span = 1 }) => (
   </div>
 );
 
+const DateAuditModal = ({ isOpen, onClose, date, t }) => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && date) {
+      const fetchLogs = async () => {
+        setLoading(true);
+        try {
+          const token = localStorage.getItem('admin_token');
+          const res = await fetch(`${API_URL}/attendance/daily?date=${date}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setLogs(data.logs || []);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchLogs();
+    }
+  }, [isOpen, date]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div style={{ background: t.card, borderColor: t.cardBorder }} className="w-full max-w-2xl rounded-2xl border shadow-xl flex flex-col max-h-[80vh]">
+        
+        {/* Header */}
+        <div style={{ borderColor: t.border }} className="flex items-center justify-between p-5 border-b shrink-0">
+          <div>
+            <h2 style={{ color: t.text }} className="text-xl font-bold">Attendance Audit</h2>
+            <p style={{ color: t.subtext }} className="text-sm mt-1">
+              Logs for {new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: t.surface, color: t.subtext, borderColor: t.border }} className="p-2 rounded-xl border hover:scale-105 transition-transform">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 overflow-y-auto flex-1">
+          {loading ? (
+             <div className="flex justify-center p-8">
+               <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+             </div>
+          ) : logs.length === 0 ? (
+             <div style={{ color: t.muted }} className="text-center p-8 text-sm">No attendance logs found for this date.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead>
+                  <tr style={{ color: t.subtext, borderBottomColor: t.border }} className="border-b">
+                    <th className="pb-3 font-semibold">Employee</th>
+                    <th className="pb-3 font-semibold">Role</th>
+                    <th className="pb-3 font-semibold">Time</th>
+                    <th className="pb-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y" style={{ divideColor: t.border }}>
+                  {logs.map(log => (
+                    <tr key={log.id} style={{ color: t.text }} className="hover:bg-slate-500/5 transition-colors">
+                      <td className="py-3 font-medium">{log.name}</td>
+                      <td className="py-3 opacity-70">{log.role}</td>
+                      <td className="py-3">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                      <td className="py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${log.status === 'IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ActivityCalendar = ({ t, onDateClick }) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [activeDates, setActiveDates] = useState([]);
+
+  const fetchCalendarActivity = async (year, month) => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch(`${API_URL}/dashboard/calendar?year=${year}&month=${month}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActiveDates(data.activeDates || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchCalendarActivity(currentDate.getFullYear(), currentDate.getMonth() + 1);
+  }, [currentDate]);
+
+  const prevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+  const nextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+  const goToCurrentMonth = () => {
+    setCurrentDate(new Date());
+  };
+
+  // Calendar logic
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  
+  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 is Sunday
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  
+  const days = [];
+  
+  // Previous month padding
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    const d = daysInPrevMonth - firstDayOfMonth + i + 1;
+    days.push({ day: d, isCurrentMonth: false });
+  }
+  
+  // Current month days
+  for (let i = 1; i <= daysInMonth; i++) {
+    // Format YYYY-MM-DD
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    const isActive = activeDates.includes(dateStr);
+    const isToday = new Date().toDateString() === new Date(year, month, i).toDateString();
+    
+    days.push({ day: i, isCurrentMonth: true, isActive, dateStr, isToday });
+  }
+  
+  // Next month padding (to fill a 6 week grid = 42 days)
+  const remaining = 42 - days.length;
+  for (let i = 1; i <= remaining; i++) {
+    days.push({ day: i, isCurrentMonth: false });
+  }
+
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return (
+    <div style={{ background: t.card, borderColor: t.cardBorder }} className="rounded-2xl border p-6 shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <h3 style={{ color: t.text }} className="text-xl font-bold">{monthName} {year}</h3>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Activity indicator active
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button onClick={goToCurrentMonth} className="px-3 py-1.5 text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors border border-slate-200">
+            Current Month
+          </button>
+          <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="w-full">
+        {/* Weekdays */}
+        <div className="grid grid-cols-7 mb-6">
+          {weekdays.map(d => (
+            <div key={d} className="text-center text-sm font-semibold text-slate-500">{d}</div>
+          ))}
+        </div>
+        
+        {/* Days */}
+        <div className="grid grid-cols-7 gap-y-6">
+          {days.map((d, i) => (
+            <div key={i} className="flex flex-col items-center justify-center relative min-h-[48px] group">
+              {d.isCurrentMonth && d.isToday && (
+                <div className="absolute inset-0 m-auto w-10 h-6 border border-slate-300 rounded-[20px] pointer-events-none" />
+              )}
+              <div className={`
+                flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium z-10
+                ${!d.isCurrentMonth ? 'text-slate-300' : 'text-slate-700'}
+                ${d.isCurrentMonth ? 'cursor-pointer hover:bg-slate-100' : ''}
+              `}
+              onClick={() => {
+                if (d.isCurrentMonth && onDateClick) {
+                  onDateClick(d.dateStr);
+                }
+              }}>
+                {d.day}
+              </div>
+              {d.isActive && d.isCurrentMonth && (
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute bottom-1 left-1/2 -translate-x-1/2 z-10" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8 pt-4 border-t border-slate-100 text-xs text-slate-400 font-medium">
+        Click a day or range above to filter by date
+      </div>
+    </div>
+  );
+};
+
 // ─── Custom Tooltip ────────────────────────────────────────────────────────────
 const DarkTooltip = ({ active, payload, label, formatLabel, t }) => {
   if (!active || !payload?.length) return null;
@@ -91,6 +314,14 @@ const DashboardCharts = () => {
   const [liveCheckIns, setLiveCheckIns] = useState(0);
   const [liveCheckOuts, setLiveCheckOuts] = useState(0);
   const [lastActivity, setLastActivity] = useState(null);
+  
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [selectedAuditDate, setSelectedAuditDate] = useState(null);
+
+  const handleDateClick = (dateStr) => {
+    setSelectedAuditDate(dateStr);
+    setAuditModalOpen(true);
+  };
 
   const t = THEMES[darkMode ? 'dark' : 'light'];
   const isLoggedIn = !!localStorage.getItem('admin_token');
@@ -323,17 +554,17 @@ const DashboardCharts = () => {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Bar chart — Department */}
-          <ChartCard title="Department Comparison" t={t}>
+          {/* Bar chart — Employee */}
+          <ChartCard title="Employee Comparison" t={t}>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={data?.departments || []} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={data?.employees || []} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={t.gridStroke} vertical={false} />
-                <XAxis dataKey="department" tick={{ fontSize: 10, fill: t.axisStroke }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="employee_name" tick={{ fontSize: 10, fill: t.axisStroke }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: t.axisStroke }} axisLine={false} tickLine={false} />
                 <Tooltip content={<DarkTooltip t={t} />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: t.subtext }} />
-                <Bar dataKey="total_employees" fill="#6366f1" name="Total" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="checked_in_today" fill="#10b981" name="Checked In" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="total_attendance" fill="#6366f1" name="Total Attendance" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="checked_in_today" fill="#10b981" name="Checked In Today" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -365,57 +596,16 @@ const DashboardCharts = () => {
 
         </div>
 
-        {/* Heat map */}
-        <div style={{ background: t.card, borderColor: t.cardBorder }} className="rounded-2xl border p-5">
-          <h3 style={{ color: t.text }} className="text-sm font-bold mb-4">Check-in Patterns by Day &amp; Hour</h3>
-          {data?.heatMap?.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: 700 }}>
-                {/* Hour labels */}
-                <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: '52px repeat(24, 1fr)' }}>
-                  <div />
-                  {[...Array(24)].map((_, i) => (
-                    <div key={i} style={{ color: t.muted }} className="text-center text-[10px] font-mono">{i}</div>
-                  ))}
-                </div>
-                {/* Day rows */}
-                {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => {
-                  const dayData = data.heatMap.filter(h => h.day === day);
-                  return (
-                    <div key={day} className="grid gap-1 mb-1" style={{ gridTemplateColumns: '52px repeat(24, 1fr)' }}>
-                      <div style={{ color: t.subtext }} className="text-xs font-medium flex items-center pr-2">{day.slice(0, 3)}</div>
-                      {[...Array(24)].map((_, hour) => {
-                        const count = dayData.find(h => h.hour === hour)?.check_ins || 0;
-                        const alpha = count > 0 ? Math.min(0.9, 0.15 + (count / 8) * 0.75) : 0;
-                        return (
-                          <div key={hour}
-                            className="aspect-square rounded flex items-center justify-center text-[9px] font-bold transition-all duration-200 cursor-default hover:scale-110"
-                            style={{
-                              background: count > 0 ? `rgba(99,102,241,${alpha})` : t.surface,
-                              color: alpha > 0.5 ? '#fff' : t.muted,
-                              border: `1px solid ${t.border}`
-                            }}
-                            title={`${day} ${hour}:00 — ${count} check-in${count !== 1 ? 's' : ''}`}>
-                            {count > 0 ? count : ''}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-                <div style={{ color: t.muted }} className="text-[10px] mt-2 text-right">
-                  Darker = more check-ins at that hour
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ color: t.muted }} className="flex items-center justify-center h-20 text-sm">
-              No heat map data available yet
-            </div>
-          )}
-        </div>
+        <ActivityCalendar t={t} onDateClick={handleDateClick} />
 
       </div>
+
+      <DateAuditModal 
+        isOpen={auditModalOpen} 
+        onClose={() => setAuditModalOpen(false)} 
+        date={selectedAuditDate} 
+        t={t} 
+      />
     </div>
   );
 };

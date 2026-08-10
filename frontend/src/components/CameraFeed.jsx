@@ -12,6 +12,8 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
   const [isMotionDetectionActive, setIsMotionDetectionActive] = useState(false);
   const detectionIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
+  const lastRecognitionTimeRef = useRef(0);
+  const lastRecognizedFacesRef = useRef([]);
 
   // Confidence thresholds for face recognition
   const HIGH_CONFIDENCE_THRESHOLD = 0.4; // Log attendance
@@ -170,70 +172,119 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
     faceapi.matchDimensions(canvas, displaySize);
 
-    // Detect faces using tinyFaceDetector
-    const detections = await faceapi
-      .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptors();
-
-    // Register face detection to reset face timeout and countdown
-    if (detections.length > 0) {
-      cameraManager.registerFaceDetection();
-      setCountdown(5); // Reset countdown to 5 seconds
+    const now = Date.now();
+    const shouldRecognize = now - lastRecognitionTimeRef.current > 1000;
+    
+    let resizedDetections = [];
+    
+    if (shouldRecognize) {
+      // Detect faces with heavy recognition
+      const detections = await faceapi
+        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+        
+      resizedDetections = faceapi.resizeResults(detections, displaySize);
+      lastRecognitionTimeRef.current = now;
+      
+      // Update cached labels
+      lastRecognizedFacesRef.current = resizedDetections.map(det => {
+        const bestMatch = faceMatcher.findBestMatch(det.descriptor);
+        return {
+          box: det.detection.box,
+          label: bestMatch.label,
+          distance: bestMatch.distance,
+          descriptor: det.descriptor
+        };
+      });
+      
+      // Register face detection to reset face timeout and countdown
+      if (detections.length > 0) {
+        cameraManager.registerFaceDetection();
+        setCountdown(5); // Reset countdown to 5 seconds
+      }
+    } else {
+      // Only do lightweight box detection
+      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+      resizedDetections = faceapi.resizeResults(detections, displaySize);
+      
+      // Register face detection to reset face timeout and countdown
+      if (detections.length > 0) {
+        cameraManager.registerFaceDetection();
+        setCountdown(5);
+      }
     }
-
-    // Resize detections to match display size
-    const resizedDetections = faceapi.resizeResults(detections, displaySize);
 
     // Clear canvas
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Find matches for each detected face
+    // Find matches for each detected face and draw
     resizedDetections.forEach((detection) => {
-      const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-
-      // Determine confidence level and box color
-      let boxColor;
-      if (bestMatch.distance < HIGH_CONFIDENCE_THRESHOLD) {
-        boxColor = '#00ff00'; // Green - high confidence
-      } else if (bestMatch.distance < LOW_CONFIDENCE_THRESHOLD) {
-        boxColor = '#ffaa00'; // Orange - low confidence
-      } else {
-        boxColor = '#ff0000'; // Red - unknown
+      // If we did a heavy pass, we already have the box at detection.detection.box.
+      // If we did a light pass, we have it at detection.box.
+      const box = detection.detection ? detection.detection.box : detection.box;
+      
+      let label = 'unknown';
+      let distance = 1.0;
+      let boxColor = '#ff0000'; // Red - unknown
+      
+      // Simple center-distance heuristic to track faces between heavy passes
+      let minDist = Infinity;
+      let match = null;
+      
+      const center1 = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      
+      lastRecognizedFacesRef.current.forEach(cached => {
+         const center2 = { x: cached.box.x + cached.box.width / 2, y: cached.box.y + cached.box.height / 2 };
+         const dist = Math.sqrt(Math.pow(center1.x - center2.x, 2) + Math.pow(center1.y - center2.y, 2));
+         if (dist < minDist) {
+            minDist = dist;
+            match = cached;
+         }
+      });
+      
+      // If center moved less than 150 pixels, assume it's the same person
+      if (match && minDist < 150) {
+         label = match.label;
+         distance = match.distance;
+         
+         if (distance < HIGH_CONFIDENCE_THRESHOLD) {
+           boxColor = '#00ff00'; // Green - high confidence
+         } else if (distance < LOW_CONFIDENCE_THRESHOLD) {
+           boxColor = '#ffaa00'; // Orange - low confidence
+         }
       }
 
       // Draw detection box
-      const box = detection.detection.box;
       const drawBox = new faceapi.draw.DrawBox(box, {
-        label: bestMatch.toString(),
+        label: label !== 'unknown' ? `${label} (${Math.round(distance * 100) / 100})` : 'unknown',
         boxColor: boxColor,
         lineWidth: 2
       });
       drawBox.draw(canvas);
 
       // Handle based on confidence level
-      if (bestMatch.distance < HIGH_CONFIDENCE_THRESHOLD) {
+      if (distance < HIGH_CONFIDENCE_THRESHOLD) {
         // High confidence - start dwell tracking
-        const userId = bestMatch.label;
-        startDwellTracking(userId);
+        startDwellTracking(label);
 
         // Check if minimum dwell time has been reached
         if (dwellStartTime && (Date.now() - dwellStartTime >= MIN_DWELL_TIME)) {
           // Dwell time reached - log attendance
           onFaceDetected({
-            userId: bestMatch.label,
-            confidence: bestMatch.distance,
-            name: bestMatch.label,
+            userId: label,
+            confidence: distance,
+            name: label,
             timestamp: Date.now()
           });
           resetDwellTracking();
         }
-      } else if (bestMatch.distance < LOW_CONFIDENCE_THRESHOLD) {
+      } else if (distance < LOW_CONFIDENCE_THRESHOLD) {
         // Low confidence - reset dwell tracking and show warning
         resetDwellTracking();
         showWarning(
-          `Low confidence match for ${bestMatch.label}. Please reposition or improve lighting.`,
+          `Low confidence match for ${label}. Please reposition or improve lighting.`,
           'low-confidence'
         );
       } else {
@@ -247,7 +298,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     });
 
     // If no faces detected, reset dwell tracking
-    if (detections.length === 0 && isDwelling) {
+    if (resizedDetections.length === 0 && isDwelling) {
       resetDwellTracking();
     }
   }, [faceMatcher, isModelsLoaded, onFaceDetected, showWarning, startDwellTracking, resetDwellTracking, dwellStartTime, isDwelling]);
@@ -256,14 +307,31 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
    * Start detection loop
    */
   useEffect(() => {
+    let isSubscribed = true;
+
+    const runDetectionLoop = async () => {
+      if (!isSubscribed || !isStreamActive || !isModelsLoaded) return;
+      
+      try {
+        await detectFaces();
+      } catch (error) {
+        console.error('Error during face detection:', error);
+      }
+      
+      // Schedule next frame only after current one finishes
+      if (isSubscribed) {
+        detectionIntervalRef.current = setTimeout(runDetectionLoop, 150);
+      }
+    };
+
     if (isStreamActive && isModelsLoaded) {
-      // Run detection at ~5-10 FPS (every 100-200ms)
-      detectionIntervalRef.current = setInterval(detectFaces, 150);
+      runDetectionLoop();
     }
 
     return () => {
+      isSubscribed = false;
       if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
+        clearTimeout(detectionIntervalRef.current);
       }
       if (dwellIntervalRef.current) {
         clearInterval(dwellIntervalRef.current);
@@ -320,7 +388,7 @@ const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
     return () => {
       stopVideo();
       if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
+        clearTimeout(detectionIntervalRef.current);
       }
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);

@@ -282,7 +282,7 @@ const EmployeeList = () => {
       const method = editingEmployee ? 'PUT' : 'POST';
 
       const payload = editingEmployee 
-        ? formData 
+        ? { ...formData, ...(faceDescriptor ? { face_descriptor: faceDescriptor } : {}) }
         : { ...formData, face_descriptor: faceDescriptor };
 
       const response = await fetch(url, {
@@ -715,10 +715,11 @@ const EmployeeList = () => {
                 </div>
               </div>
 
-              {!editingEmployee && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-900">Face Registration</h4>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    {editingEmployee ? 'Update Face Registration (Optional)' : 'Face Registration'}
+                  </h4>
                     {!isCapturing ? (
                       <button
                         type="button"
@@ -784,7 +785,6 @@ const EmployeeList = () => {
                     <p className="text-slate-400 text-xs">* Face registration is required for new employees</p>
                   )}
                 </div>
-              )}
 
               <div className="flex gap-3 pt-4">
                 <button

@@ -10,6 +10,14 @@ export const loadModels = async () => {
   const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
   
   try {
+    try {
+      await faceapi.tf.setBackend('webgl');
+      await faceapi.tf.ready();
+      console.log('TensorFlow backend set to:', faceapi.tf.getBackend());
+    } catch (tfError) {
+      console.warn('WebGL backend failed, using default CPU:', tfError);
+    }
+
     await Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),

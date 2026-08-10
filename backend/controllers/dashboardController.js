@@ -17,17 +17,17 @@ const getDashboardStats = async (req, res) => {
       ORDER BY date ASC
     `, [parseInt(days)]);
 
-    // 2. Department comparison (bar chart)
-    const [departmentData] = await pool.query(`
+    // 2. Employee comparison (bar chart)
+    const [employeeData] = await pool.query(`
       SELECT 
-        u.role as department,
-        COUNT(DISTINCT u.id) as total_employees,
-        COUNT(DISTINCT CASE WHEN al.status = 'IN' AND DATE(al.timestamp) = CURDATE() THEN u.id END) as checked_in_today,
-        COUNT(al.id) as total_attendance
+        u.name as employee_name,
+        COUNT(al.id) as total_attendance,
+        COUNT(CASE WHEN al.status = 'IN' AND DATE(al.timestamp) = CURDATE() THEN 1 END) as checked_in_today
       FROM users u
       LEFT JOIN attendance_logs al ON u.id = al.user_id AND al.timestamp >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-      GROUP BY u.role
+      GROUP BY u.id, u.name
       ORDER BY total_attendance DESC
+      LIMIT 10
     `, [parseInt(days)]);
 
     // 3. Attendance breakdown (pie chart - today's status)
@@ -76,7 +76,7 @@ const getDashboardStats = async (req, res) => {
 
     res.status(200).json({
       trends: trendData,
-      departments: departmentData,
+      employees: employeeData,
       breakdown: {
         checked_in: breakdownData[0]?.checked_in || 0,
         checked_out: breakdownData[0]?.checked_out || 0,
@@ -97,6 +97,32 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+const getCalendarActivity = async (req, res) => {
+  try {
+    const { year, month } = req.query; // month is 1-12
+    if (!year || !month) return res.status(400).json({ error: 'Year and month are required' });
+
+    const y = parseInt(year);
+    const m = parseInt(month);
+    
+    const [rows] = await pool.query(`
+      SELECT DISTINCT DATE_FORMAT(timestamp, '%Y-%m-%d') as active_date
+      FROM attendance_logs
+      WHERE status = 'IN' 
+        AND YEAR(timestamp) = ? 
+        AND MONTH(timestamp) = ?
+    `, [y, m]);
+
+    const activeDates = rows.map(r => r.active_date);
+    
+    res.status(200).json({ activeDates });
+  } catch (error) {
+    console.error('Error fetching calendar stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
-  getDashboardStats
+  getDashboardStats,
+  getCalendarActivity
 };
