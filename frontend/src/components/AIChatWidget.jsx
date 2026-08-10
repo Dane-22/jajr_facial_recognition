@@ -1,9 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import { processAssistantQuery } from '../services/assistantEngine';
 import ConversationList from './chat/ConversationList';
 import GroupChatView from './chat/GroupChatView';
 import CreateGroupModal from './chat/CreateGroupModal';
+
+const getAuthToken = () => {
+  return localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
+};
+
+const getLoggedInUser = () => {
+  const token = getAuthToken();
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return {
+        id: payload.id || 1,
+        username: payload.username || payload.name || 'Admin',
+        type: payload.type || 'admin',
+        position: payload.position || 'Admin'
+      };
+    } catch (e) {
+      console.warn('Failed to parse user token:', e);
+    }
+  }
+  return { id: 1, username: 'Admin', type: 'admin', position: 'Superadmin' };
+};
 
 const AIChatWidget = ({ activeTab, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,27 +67,6 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     }
   }, [aiMessages, isThinking, activeWidgetTab]);
 
-  const getAuthToken = () => {
-    return localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
-  };
-
-  const getLoggedInUser = () => {
-    const token = getAuthToken();
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return {
-          id: payload.id || 1,
-          username: payload.username || payload.name || 'Admin',
-          type: payload.type || 'admin',
-          position: payload.position || 'Admin'
-        };
-      } catch (e) {
-        console.warn('Failed to parse user token:', e);
-      }
-    }
-    return { id: 1, username: 'Admin', type: 'admin', position: 'Superadmin' };
-  };
 
   const [currentUser, setCurrentUser] = useState(getLoggedInUser);
 
@@ -145,6 +146,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     return () => {
       socket.disconnect();
     };
+     
   }, []);
 
   // Fetch Rooms from API
@@ -282,12 +284,12 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
 
       recognitionRef.current = recognition;
     }
-  }, [activeTab]);
+  }, [activeTab, handleSendAiMessage]);
 
   const speakText = (text) => {
     if (isMuted || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    const cleanText = text.replace(/[\*\#\`\_]/g, '');
+    const cleanText = text.replace(/[*#`_]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
@@ -316,7 +318,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     }
   };
 
-  const handleSendAiMessage = async (textToSend) => {
+  const handleSendAiMessage = useCallback(async (textToSend) => {
     const queryText = textToSend || inputQuery;
     if (!queryText.trim()) return;
 
@@ -356,7 +358,8 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       console.error('[AIChatWidget] Processing error:', err);
       setIsThinking(false);
     }
-  };
+     
+  }, [activeTab, inputQuery, onNavigate]);
 
   const handleOpenWidget = () => {
     setIsOpen(true);

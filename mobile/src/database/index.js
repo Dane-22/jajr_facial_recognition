@@ -26,10 +26,24 @@ export const initDB = async () => {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 employeeId INTEGER NOT NULL,
                 timestamp TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'IN',
                 synced INTEGER DEFAULT 0,
                 FOREIGN KEY (employeeId) REFERENCES Employees(id)
             );
         `);
+
+        // Migration: Add status column if it doesn't exist
+        try {
+            const result = await db.getAllAsync("PRAGMA table_info(AttendanceLog)");
+            const hasStatusColumn = result.some(col => col.name === 'status');
+            
+            if (!hasStatusColumn) {
+                await db.execAsync("ALTER TABLE AttendanceLog ADD COLUMN status TEXT NOT NULL DEFAULT 'IN'");
+                console.log('Database Migration: Added status column to AttendanceLog');
+            }
+        } catch (migrationError) {
+            console.error('Error during database migration:', migrationError);
+        }
         console.log('Database initialized successfully');
     } catch (error) {
         console.error('Error initializing database', error);

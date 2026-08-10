@@ -1,9 +1,10 @@
 const pool = require('../config/db');
 const { manualLog } = require('../middleware/audit');
+const crypto = require('crypto');
 
 const logAttendance = async (req, res) => {
   try {
-    const { userId, status } = req.body;
+    const { userId, status, timestamp, signature } = req.body;
 
     if (!userId || !status) {
       return res.status(400).json({ error: 'User ID and status are required' });
@@ -11,6 +12,29 @@ const logAttendance = async (req, res) => {
 
     if (status !== 'IN' && status !== 'OUT') {
       return res.status(400).json({ error: 'Status must be either IN or OUT' });
+    }
+
+    // Security enhancement: Require HMAC signature for Kiosk requests
+    if (req.userType === 'kiosk') {
+      if (!timestamp || !signature) {
+        return res.status(400).json({ error: 'Missing security signature or timestamp' });
+      }
+      
+      const now = Date.now();
+      const reqTime = new Date(timestamp).getTime();
+      
+      // Prevent replay attacks (5 minute window)
+      if (isNaN(reqTime) || Math.abs(now - reqTime) > 5 * 60 * 1000) {
+        return res.status(400).json({ error: 'Request expired or invalid timestamp' });
+      }
+      
+      const expectedApiKey = process.env.KIOSK_API_KEY || 'kiosk_dev_secret_key_2026';
+      const payload = `${userId}:${status}:${timestamp}`;
+      const expectedSignature = crypto.createHmac('sha256', expectedApiKey).update(payload).digest('hex');
+      
+      if (signature !== expectedSignature) {
+        return res.status(401).json({ error: 'Invalid security signature' });
+      }
     }
 
     // Check if userId is a name (string) or numeric ID

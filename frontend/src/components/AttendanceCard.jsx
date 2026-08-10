@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -73,7 +73,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
   /**
    * Log attendance to backend
    */
-  const logAttendance = async (userId, userName) => {
+  const logAttendance = useCallback(async (userId, userName) => {
     // Check immediately using useRef (synchronous) to prevent race conditions
     if (pendingRequests.current.has(userId)) {
       console.log(`Attendance request already pending for ${userName}, skipping`);
@@ -109,6 +109,29 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         return;
       }
 
+      const timestamp = new Date().toISOString();
+      let signature = '';
+      try {
+        const encoder = new TextEncoder();
+        const key = await window.crypto.subtle.importKey(
+          'raw',
+          encoder.encode('kiosk_dev_secret_key_2026'),
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        const sigBuf = await window.crypto.subtle.sign(
+          'HMAC',
+          key,
+          encoder.encode(`${userId}:${status}:${timestamp}`)
+        );
+        signature = Array.from(new Uint8Array(sigBuf))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+      } catch (err) {
+        console.error('Failed to generate signature', err);
+      }
+
       const response = await fetch(`${API_URL}/attendance/log`, {
         method: 'POST',
         headers: {
@@ -118,6 +141,8 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         body: JSON.stringify({
           userId,
           status,
+          timestamp,
+          signature
         }),
       });
 
@@ -131,7 +156,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         throw new Error('Failed to log attendance');
       }
 
-      const result = await response.json();
+      await response.json();
       
       // Update recent attendance list
       setRecentAttendance(prev => [
@@ -172,7 +197,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         delete debounceTimers.current[userId];
       }, DEBOUNCE_DELAY);
     }
-  };
+  }, []);
 
   /**
    * Handle face detection from camera with session-based logging
@@ -206,7 +231,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
       // Log attendance for this user
       logAttendance(userId, name);
     }
-  }, [lastDetection]); // Note: loggedUsers is intentionally omitted to avoid stale state bugs
+  }, [lastDetection, logAttendance]); // Note: loggedUsers is intentionally omitted to avoid stale state bugs
 
   /**
    * Cleanup logged users who haven't been detected for SESSION_TIMEOUT

@@ -1,5 +1,6 @@
 import { getUnsyncedAttendance, markAttendanceAsSynced } from '../database/queries';
 import apiClient from '../api/client';
+import CryptoJS from 'crypto-js';
 
 /**
  * Synchronizes offline attendance records with the backend database.
@@ -13,28 +14,50 @@ export const syncOfflineData = async () => {
             return { success: 0, failed: 0, message: 'No records to sync' };
         }
 
-        const syncedIds = [];
+        let syncedIds = [];
         let failedCount = 0;
+        const KIOSK_API_KEY = process.env.EXPO_PUBLIC_KIOSK_API_KEY || 'kiosk_dev_secret_key_2026';
+        
+        // Chunk array into batches of 100
+        const chunkSize = 100;
+        for (let i = 0; i < unsyncedRecords.length; i += chunkSize) {
+            const chunk = unsyncedRecords.slice(i, i + chunkSize);
+            
+            // Format records with signatures
+            const formattedRecords = chunk.map(record => {
+                const userId = record.employeeId;
+                const status = record.status || 'IN';
+                const timestamp = new Date(record.timestamp).toISOString();
+                const payload = `${userId}:${status}:${timestamp}`;
+                const signature = CryptoJS.HmacSHA256(payload, KIOSK_API_KEY).toString(CryptoJS.enc.Hex);
+                
+                return {
+                    id: record.id, // Keep local id for reference
+                    userId,
+                    status,
+                    timestamp,
+                    signature,
+                    isOfflineSync: true
+                };
+            });
 
-        for (const record of unsyncedRecords) {
             try {
-                // Post to the backend endpoint (adjust endpoint to match your Node.js backend)
-                // Assuming the backend expects { employeeId, time, status } etc.
-                const response = await apiClient.post('/attendance/record', {
-                    employeeId: record.employeeId,
-                    time: record.timestamp, // Assuming ISO string is handled correctly by backend
-                    status: 'Present', // Or infer from time/logic
-                    isOfflineSync: true, // Flag to let backend know this is historical
+                const response = await apiClient.post('/attendance/batch-sync', {
+                    records: formattedRecords
+                }, {
+                    headers: { 'X-Kiosk-Api-Key': KIOSK_API_KEY }
                 });
 
                 if (response.status === 200 || response.status === 201) {
-                    syncedIds.push(record.id);
+                    // All successfully processed by backend
+                    // Note: Backend might skip duplicates, but we still mark them as synced locally
+                    syncedIds = [...syncedIds, ...chunk.map(r => r.id)];
                 } else {
-                    failedCount++;
+                    failedCount += chunk.length;
                 }
             } catch (err) {
-                console.error(`Failed to sync record ID ${record.id}`, err);
-                failedCount++;
+                console.error(`Failed to sync batch starting at index ${i}`, err);
+                failedCount += chunk.length;
             }
         }
 

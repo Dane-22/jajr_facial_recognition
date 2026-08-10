@@ -46,7 +46,7 @@ const EmployeeList = () => {
 
   useEffect(() => {
     fetchEmployees();
-  }, [debouncedSearchTerm, roleFilter, startDate, endDate, sortBy, sortOrder]);
+  }, [fetchEmployees]);
 
   useEffect(() => {
     let isMounted = true;
@@ -56,8 +56,7 @@ const EmployeeList = () => {
       if (!showModal) return;
 
       try {
-        console.log('Loading face-api models...');
-        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+        const MODEL_URL = '/models';
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -85,7 +84,7 @@ const EmployeeList = () => {
     };
   }, [showModal]);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     const now = Date.now();
     // Rate limiter throttle check (min 300ms between calls)
     if (now - lastFetchRef.current < 300) {
@@ -130,7 +129,7 @@ const EmployeeList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearchTerm, roleFilter, startDate, endDate, sortBy, sortOrder]);
 
   const handleCreate = () => {
     setEditingEmployee(null);
@@ -528,7 +527,7 @@ const EmployeeList = () => {
                 </svg>
               </div>
               <p className="text-slate-700 font-semibold">No employees found</p>
-              <p className="text-slate-500 text-sm mt-1">Click "Add Employee" to create one</p>
+              <p className="text-slate-500 text-sm mt-1">Click &quot;Add Employee&quot; to create one</p>
             </div>
           ) : (
             <div className="overflow-x-auto min-h-[18rem]">

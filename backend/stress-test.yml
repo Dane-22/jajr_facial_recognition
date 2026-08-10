@@ -1,0 +1,40 @@
+config:
+  target: "http://localhost:5000"
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      rampTo: 50
+      name: "Morning Rush (Ramp up to 50 requests/sec)"
+    - duration: 30
+      arrivalRate: 50
+      name: "Sustained Peak Load (50 requests/sec)"
+  
+  processor: "./artillery-helpers.js"
+
+scenarios:
+  - name: "Log Attendance via Kiosk"
+    weight: 9
+    flow:
+      - function: "generateSignature"
+      - post:
+          url: "/api/attendance/log"
+          headers:
+            X-Kiosk-Api-Key: "kiosk_dev_secret_key_2026"
+            Content-Type: "application/json"
+          json:
+            userId: "{{ userId }}"
+            status: "{{ status }}"
+            timestamp: "{{ timestamp }}"
+            signature: "{{ signature }}"
+  
+  - name: "Batch Sync (Offline Kiosk Recovery)"
+    weight: 1
+    flow:
+      - function: "generateBatch"
+      - post:
+          url: "/api/attendance/batch-sync"
+          headers:
+            X-Kiosk-Api-Key: "kiosk_dev_secret_key_2026"
+            Content-Type: "application/json"
+          json:
+            records: "{{ batchRecords }}"

@@ -6,6 +6,11 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skip: (req, res) => {
+    // Kiosks can take hundreds of pictures sequentially, 100 limit is too small.
+    // Skip rate limiting for kiosk endpoints
+    return req.originalUrl === '/api/attendance/log';
+  }
 });
 
 module.exports = limiter;

@@ -16,6 +16,7 @@ const AdminLayout = () => {
   const navigate = useNavigate();
 
   // Detect system dark mode preference for root class
+  /* eslint-disable no-unused-vars */
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   );

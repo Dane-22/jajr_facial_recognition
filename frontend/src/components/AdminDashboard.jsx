@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const AdminDashboard = () => {
   const [logs, setLogs] = useState([]);
@@ -6,21 +6,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (token) {
-      fetchDailyLogs(token);
-    }
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (token) {
-      fetchDailyLogs(token);
-    }
-  }, [selectedDate]);
-
-  const fetchDailyLogs = async (token) => {
+  const fetchDailyLogs = useCallback(async (token) => {
     setLoading(true);
     setError('');
     try {
@@ -45,7 +31,14 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+      fetchDailyLogs(token);
+    }
+  }, [fetchDailyLogs]);
 
   const handleDateChange = (e) => {
     setSelectedDate(e.target.value);
@@ -227,6 +220,7 @@ const AdminDashboard = () => {
             </div>
           )}
         </div>
+      </div>
       </main>
     </div>
   );

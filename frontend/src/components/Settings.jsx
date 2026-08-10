@@ -428,7 +428,7 @@ const Settings = () => {
             <form onSubmit={handleChangePassword} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
               {/* Current Password */}
               <div>
-                <label htmlFor="currentPassword" class="block text-xs font-bold text-slate-800 mb-1.5">
+                <label htmlFor="currentPassword" className="block text-xs font-bold text-slate-800 mb-1.5">
                   Current Password
                 </label>
                 <div className="relative">
@@ -452,7 +452,7 @@ const Settings = () => {
 
               {/* New Password */}
               <div>
-                <label htmlFor="newPassword" class="block text-xs font-bold text-slate-800 mb-1.5">
+                <label htmlFor="newPassword" className="block text-xs font-bold text-slate-800 mb-1.5">
                   New Password
                 </label>
                 <div className="relative">
@@ -492,7 +492,7 @@ const Settings = () => {
 
               {/* Confirm Password */}
               <div>
-                <label htmlFor="confirmPassword" class="block text-xs font-bold text-slate-800 mb-1.5">
+                <label htmlFor="confirmPassword" className="block text-xs font-bold text-slate-800 mb-1.5">
                   Confirm New Password
                 </label>
                 <input

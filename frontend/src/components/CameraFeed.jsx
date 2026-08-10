@@ -3,13 +3,14 @@ import * as faceapi from 'face-api.js';
 import { cameraManager } from '../utils/cameraManager';
 
 const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
-  const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [cameraStatus, setCameraStatus] = useState('initializing'); // initializing, active, idle, error, motion_detection
   const [countdown, setCountdown] = useState(0); // Countdown timer in seconds
+  // eslint-disable-next-line no-unused-vars
   const [isMotionDetectionActive, setIsMotionDetectionActive] = useState(false);
+  const videoRef = useRef(null);
   const detectionIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
   const lastRecognitionTimeRef = useRef(0);

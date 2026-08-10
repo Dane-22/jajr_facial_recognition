@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
 import useSocket from '../hooks/useSocket';
@@ -27,7 +27,6 @@ const THEMES = {
   }
 };
 
-const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -50,10 +49,6 @@ const StatCard = ({ label, value, sub, color, icon, live, t }) => (
       {sub && <p style={{ color: t.muted }} className="text-xs mt-0.5">{sub}</p>}
     </div>
   </div>
-);
-
-const SectionTitle = ({ children, t }) => (
-  <h3 style={{ color: t.text }} className="text-sm font-bold uppercase tracking-wider mb-3">{children}</h3>
 );
 
 const ChartCard = ({ title, children, t, span = 1 }) => (
@@ -582,7 +577,7 @@ const DashboardCharts = () => {
                   cx="50%" cy="50%"
                   innerRadius={55} outerRadius={90}
                   paddingAngle={4} dataKey="value"
-                  label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
+                  label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                   labelLine={false}>
                   <Cell fill="#10b981" />
                   <Cell fill="#f59e0b" />

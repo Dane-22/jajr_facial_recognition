@@ -4,13 +4,14 @@ import { getDB } from './index';
  * Saves a new attendance record offline.
  * @param {number} employeeId
  * @param {string} timestamp (ISO string)
+ * @param {string} status ('IN' or 'OUT')
  */
-export const logOfflineAttendance = async (employeeId, timestamp) => {
+export const logOfflineAttendance = async (employeeId, timestamp, status = 'IN') => {
     const db = getDB();
     try {
         const result = await db.runAsync(
-            'INSERT INTO AttendanceLog (employeeId, timestamp, synced) VALUES (?, ?, 0)',
-            [employeeId, timestamp]
+            'INSERT INTO AttendanceLog (employeeId, timestamp, status, synced) VALUES (?, ?, ?, 0)',
+            [employeeId, timestamp, status]
         );
         return result.lastInsertRowId;
     } catch (error) {

@@ -97,21 +97,37 @@ io.on('connection', (socket) => {
   // Send Message
   socket.on('chat:send_message', async (data, callback) => {
     try {
-      const { roomId, senderId, senderType, senderName, senderRole, messageType, content, attachmentUrl, replyToId } = data;
+      const token = data?.token || socket.handshake.auth?.token;
+      if (!token) {
+        if (typeof callback === 'function') callback({ success: false, error: 'Unauthorized' });
+        return;
+      }
+      let decodedUser;
+      try {
+        decodedUser = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+      } catch (err) {
+        if (typeof callback === 'function') callback({ success: false, error: 'Invalid token' });
+        return;
+      }
+
+      const { roomId, senderName, senderRole, messageType, content, attachmentUrl, replyToId } = data;
+      const actualSenderId = decodedUser.id;
+      const actualSenderType = decodedUser.type || 'admin';
+
       if (!roomId || !content) return;
 
       const [result] = await pool.query(`
         INSERT INTO chat_messages (room_id, sender_id, sender_type, message_type, content, attachment_url, reply_to_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [roomId, senderId || 1, senderType || 'admin', messageType || 'text', content, attachmentUrl || null, replyToId || null]);
+      `, [roomId, actualSenderId, actualSenderType, messageType || 'text', content, attachmentUrl || null, replyToId || null]);
 
       const newMessage = {
         id: result.insertId,
         room_id: roomId,
-        sender_id: senderId || 1,
-        sender_type: senderType || 'admin',
-        sender_name: senderName || 'Admin',
-        sender_role: senderRole || 'Superadmin',
+        sender_id: actualSenderId,
+        sender_type: actualSenderType,
+        sender_name: senderName || decodedUser.username || 'User',
+        sender_role: senderRole || decodedUser.position || 'User',
         message_type: messageType || 'text',
         content,
         attachment_url: attachmentUrl || null,
@@ -136,16 +152,28 @@ io.on('connection', (socket) => {
   // Emoji Reactions
   socket.on('chat:add_reaction', async (data) => {
     try {
-      const { messageId, roomId, userId, userType, emoji } = data;
+      const token = data?.token || socket.handshake.auth?.token;
+      if (!token) return;
+      let decodedUser;
+      try {
+        decodedUser = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+      } catch (err) {
+        return;
+      }
+
+      const { messageId, roomId, emoji } = data;
+      const actualUserId = decodedUser.id;
+      const actualUserType = decodedUser.type || 'admin';
+
       if (!messageId || !emoji) return;
 
       await pool.query(`
         INSERT INTO chat_message_reactions (message_id, user_id, user_type, emoji)
         VALUES (?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE emoji = VALUES(emoji)
-      `, [messageId, userId || 1, userType || 'admin', emoji]);
+      `, [messageId, actualUserId, actualUserType, emoji]);
 
-      io.to(`room:${roomId}`).emit('chat:reaction_updated', { messageId, userId, userType, emoji });
+      io.to(`room:${roomId}`).emit('chat:reaction_updated', { messageId, userId: actualUserId, userType: actualUserType, emoji });
     } catch (err) {
       console.error('[Socket.IO] Error adding reaction:', err);
     }

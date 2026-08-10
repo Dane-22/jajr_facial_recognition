@@ -47,6 +47,7 @@ export async function getAssistantSummary() {
  * @param {string} currentTab - Currently active admin portal tab
  * @returns {Promise<Object>} Formatted response object
  */
+// eslint-disable-next-line no-unused-vars
 export async function processAssistantQuery(query = '', currentTab = 'dashboard') {
   const normalized = query.toLowerCase().trim();
 

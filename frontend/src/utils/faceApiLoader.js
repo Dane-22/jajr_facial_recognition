@@ -7,7 +7,7 @@ const API_URL = 'http://localhost:5000/api';
  * @returns {Promise<void>}
  */
 export const loadModels = async () => {
-  const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+  const MODEL_URL = '/models';
   
   try {
     try {
