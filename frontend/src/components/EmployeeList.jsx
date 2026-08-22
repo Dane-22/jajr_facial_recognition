@@ -44,46 +44,6 @@ const EmployeeList = () => {
     setCurrentPage(1);
   }, [roleFilter, startDate, endDate, sortBy, sortOrder]);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadFaceApiModels = async () => {
-      // Only load models when the modal is open
-      if (!showModal) return;
-
-      try {
-        const MODEL_URL = '/models';
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
-        
-        if (isMounted) {
-          console.log('Face-api models loaded successfully');
-          setModelsLoaded(true);
-          setModelLoadingError(false);
-        }
-      } catch (error) {
-        console.error('Error loading face-api models:', error);
-        if (isMounted) {
-          setModelLoadingError(true);
-          setError('Failed to load face recognition models. Please refresh the page and try again.');
-        }
-      }
-    };
-
-    loadFaceApiModels();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [showModal]);
-
   const fetchEmployees = useCallback(async () => {
     const now = Date.now();
     // Rate limiter throttle check (min 300ms between calls)
@@ -130,6 +90,46 @@ const EmployeeList = () => {
       setLoading(false);
     }
   }, [debouncedSearchTerm, roleFilter, startDate, endDate, sortBy, sortOrder]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFaceApiModels = async () => {
+      // Only load models when the modal is open
+      if (!showModal) return;
+
+      try {
+        const MODEL_URL = '/models';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        
+        if (isMounted) {
+          console.log('Face-api models loaded successfully');
+          setModelsLoaded(true);
+          setModelLoadingError(false);
+        }
+      } catch (error) {
+        console.error('Error loading face-api models:', error);
+        if (isMounted) {
+          setModelLoadingError(true);
+          setError('Failed to load face recognition models. Please refresh the page and try again.');
+        }
+      }
+    };
+
+    loadFaceApiModels();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [showModal]);
 
   const handleCreate = () => {
     setEditingEmployee(null);

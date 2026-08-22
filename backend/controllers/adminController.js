@@ -343,34 +343,42 @@ const updateSettings = async (req, res) => {
 
 const exportBackup = async (req, res) => {
   try {
-    const [users] = await pool.query('SELECT id, name, role, created_at FROM users');
-    const [attendance] = await pool.query('SELECT * FROM attendance_logs ORDER BY timestamp DESC LIMIT 500');
-    const [audit] = await pool.query('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200');
-    const [settings] = await pool.query('SELECT * FROM system_settings');
+    const mysqldump = require('mysqldump');
+    const path = require('path');
+    const fs = require('fs');
 
-    const backupData = {
-      system: 'Facial Recognition Attendance System',
-      version: '1.0',
-      exported_at: new Date().toISOString(),
-      summary: {
-        usersCount: users.length,
-        attendanceLogsCount: attendance.length,
-        auditLogsCount: audit.length
+    const backupDir = path.join(__dirname, '../backups');
+    
+    // Ensure backups directory exists
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+    const filename = `facial_attendance_backup_${timestamp}.sql`;
+    const filePath = path.join(backupDir, filename);
+
+    // Generate the full SQL dump
+    await mysqldump({
+      connection: {
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: process.env.DB_NAME || 'facial_attendance_db',
       },
-      data: {
-        users,
-        attendance_logs: attendance,
-        audit_logs: audit,
-        system_settings: settings
-      }
-    };
+      dumpToFile: filePath,
+    });
 
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename=facial_attendance_backup_${new Date().toISOString().split('T')[0]}.json`);
-    res.status(200).send(JSON.stringify(backupData, null, 2));
+    // Send the generated SQL file to the client for download
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error('Error sending backup file:', err);
+      }
+      // We are keeping the file in the backups folder for historical records
+    });
   } catch (error) {
     console.error('Backup export error:', error);
-    res.status(500).json({ error: 'Failed to generate backup' });
+    res.status(500).json({ error: 'Failed to generate full SQL backup' });
   }
 };
 

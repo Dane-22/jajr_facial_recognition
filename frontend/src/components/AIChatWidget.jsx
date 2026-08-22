@@ -157,6 +157,9 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       const res = await fetch('/api/chat/rooms', {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
+      if (!res.ok) {
+        throw new Error(`Server responded with ${res.status}`);
+      }
       const data = await res.json();
       if (data.success) {
         setRooms(data.rooms);
@@ -242,50 +245,6 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     });
   };
 
-  // Speech Recognition Setup (Web Speech API for AI Assistant)
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsVoiceActive(true);
-      };
-
-      recognition.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0].transcript)
-          .join('');
-
-        setInputQuery(transcript);
-
-        if (event.results[0]?.isFinal) {
-          setIsVoiceActive(false);
-          if (transcript.trim()) {
-            handleSendAiMessage(transcript);
-          }
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.warn('[SpeechRecognition] Error:', event.error);
-        setIsVoiceActive(false);
-        if (event.error === 'not-allowed') {
-          alert('Microphone access was denied. Please allow microphone permissions in your browser address bar.');
-        }
-      };
-
-      recognition.onend = () => {
-        setIsVoiceActive(false);
-      };
-
-      recognitionRef.current = recognition;
-    }
-  }, [activeTab, handleSendAiMessage]);
-
   const speakText = (text) => {
     if (isMuted || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
@@ -294,28 +253,6 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     window.speechSynthesis.speak(utterance);
-  };
-
-  const toggleVoiceInput = () => {
-    setActiveWidgetTab('ai'); // Auto-switch tab to AI Assistant on voice dictation
-
-    if (!recognitionRef.current) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        alert('Speech Recognition is not supported by your current browser. Please try Google Chrome or Microsoft Edge!');
-        return;
-      }
-    }
-
-    if (isVoiceActive) {
-      recognitionRef.current?.stop();
-    } else {
-      try {
-        recognitionRef.current?.start();
-      } catch (err) {
-        console.warn('Voice restart exception:', err);
-      }
-    }
   };
 
   const handleSendAiMessage = useCallback(async (textToSend) => {
@@ -360,6 +297,72 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     }
      
   }, [activeTab, inputQuery, onNavigate]);
+
+  // Speech Recognition Setup (Web Speech API for AI Assistant)
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsVoiceActive(true);
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+
+        setInputQuery(transcript);
+
+        if (event.results[0]?.isFinal) {
+          setIsVoiceActive(false);
+          if (transcript.trim()) {
+            handleSendAiMessage(transcript);
+          }
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('[SpeechRecognition] Error:', event.error);
+        setIsVoiceActive(false);
+        if (event.error === 'not-allowed') {
+          alert('Microphone access was denied. Please allow microphone permissions in your browser address bar.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsVoiceActive(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, [activeTab, handleSendAiMessage]);
+
+  const toggleVoiceInput = () => {
+    setActiveWidgetTab('ai'); // Auto-switch tab to AI Assistant on voice dictation
+
+    if (!recognitionRef.current) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert('Speech Recognition is not supported by your current browser. Please try Google Chrome or Microsoft Edge!');
+        return;
+      }
+    }
+
+    if (isVoiceActive) {
+      recognitionRef.current?.stop();
+    } else {
+      try {
+        recognitionRef.current?.start();
+      } catch (err) {
+        console.warn('Voice restart exception:', err);
+      }
+    }
+  };
 
   const handleOpenWidget = () => {
     setIsOpen(true);

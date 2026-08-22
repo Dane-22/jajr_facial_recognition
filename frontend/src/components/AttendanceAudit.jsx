@@ -7,13 +7,13 @@ const AttendanceAudit = () => {
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Interactive Calendar & Dropdown Filters State
   const [selectedStartDate, setSelectedStartDate] = useState(null); // 'YYYY-MM-DD'
   const [selectedEndDate, setSelectedEndDate] = useState(null);     // 'YYYY-MM-DD'
   const [viewDate, setViewDate] = useState(new Date());              // Month view state
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
-  
+
   const [filters, setFilters] = useState({
     userId: '',
     status: ''
@@ -111,15 +111,26 @@ const AttendanceAudit = () => {
     // Filter by Calendar Selected Date Range
     if (selectedStartDate && !selectedEndDate) {
       filtered = filtered.filter(log => {
-        const logDateStr = new Date(log.timestamp).toISOString().split('T')[0];
+        const date = new Date(log.timestamp);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const logDateStr = `${year}-${month}-${day}`;
+
         return logDateStr === selectedStartDate;
       });
     } else if (selectedStartDate && selectedEndDate) {
       filtered = filtered.filter(log => {
-        const logDateStr = new Date(log.timestamp).toISOString().split('T')[0];
+        const date = new Date(log.timestamp);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const logDateStr = `${year}-${month}-${day}`;
+
         return logDateStr >= selectedStartDate && logDateStr <= selectedEndDate;
       });
     }
+
 
     // Filter by Employee Dropdown
     if (filters.userId) {
@@ -262,8 +273,8 @@ const AttendanceAudit = () => {
   };
 
   const getStatusColor = (status) => {
-    return status === 'IN' 
-      ? 'bg-slate-100 text-slate-700 border-slate-200' 
+    return status === 'IN'
+      ? 'bg-slate-100 text-slate-700 border-slate-200'
       : 'bg-slate-200 text-slate-800 border-slate-300';
   };
 
@@ -660,11 +671,10 @@ const AttendanceAudit = () => {
                       {showEllipsis && <span className="px-2 text-xs text-slate-400">...</span>}
                       <button
                         onClick={() => setCurrentPage(page)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                          currentPage === page
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
-                        }`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${currentPage === page
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
+                          }`}
                       >
                         {page}
                       </button>

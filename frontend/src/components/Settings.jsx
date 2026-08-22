@@ -167,10 +167,11 @@ const Settings = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `facial_attendance_backup_${new Date().toISOString().split('T')[0]}.json`;
+        const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+        a.download = `facial_attendance_backup_${timestamp}.sql`;
         a.click();
         window.URL.revokeObjectURL(url);
-        setSaveSuccess('Backup exported successfully!');
+        setSaveSuccess('Full SQL backup generated & downloaded successfully!');
         setTimeout(() => setSaveSuccess(''), 3000);
       } else {
         setSaveError('Failed to generate system backup.');
@@ -574,7 +575,7 @@ const Settings = () => {
                 <button
                   onClick={handleExportBackup}
                   className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2">
-                  💾 Export Data Backup (.json)
+                  💾 Export Full Data Backup (.sql)
                 </button>
 
                 <button
