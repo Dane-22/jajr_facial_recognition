@@ -591,6 +591,9 @@ const AttendanceAudit = () => {
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">
                     Timestamp
                   </th>
+                  <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Location
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -614,6 +617,22 @@ const AttendanceAudit = () => {
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap text-sm text-slate-700">
                       {formatTimestamp(log.timestamp)}
+                    </td>
+                    <td className="px-5 py-3 whitespace-nowrap text-sm text-slate-700">
+                      {log.latitude && log.longitude ? (
+                        <iframe 
+                          width="200" 
+                          height="120" 
+                          frameBorder="0" 
+                          scrolling="no" 
+                          marginHeight="0" 
+                          marginWidth="0" 
+                          src={`https://maps.google.com/maps?q=${log.latitude},${log.longitude}&hl=en&z=17&output=embed`}
+                          className="rounded-lg border border-slate-200"
+                        ></iframe>
+                      ) : (
+                        <span className="text-slate-400 italic">No location data</span>
+                      )}
                     </td>
                   </tr>
                 ))}

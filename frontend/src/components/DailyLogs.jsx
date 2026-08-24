@@ -209,6 +209,28 @@ const DailyLogs = () => {
           {formatTimestamp(value)}
         </span>
       )
+    },
+    {
+      header: 'Location',
+      key: 'latitude', // Using latitude as key, but we access the full object in render if needed. Wait, Table component passes just the value or full object?
+      // Actually, looking at common Table implementations, it might only pass `log[key]`. Let's verify Table component.
+      // If it only passes value, we need both latitude and longitude. I will pass the whole log object if possible, but standard is value.
+      // Let's use `render: (value, log)` since most custom Tables pass `(value, row)`.
+      render: (value, log) => {
+        if (!log || !log.latitude || !log.longitude) return <span className="text-slate-400 italic text-xs">No location data</span>;
+        return (
+          <iframe 
+            width="200" 
+            height="120" 
+            frameBorder="0" 
+            scrolling="no" 
+            marginHeight="0" 
+            marginWidth="0" 
+            src={`https://maps.google.com/maps?q=${log.latitude},${log.longitude}&hl=en&z=17&output=embed`}
+            className="rounded-lg border border-slate-200"
+          ></iframe>
+        );
+      }
     }
   ];
 

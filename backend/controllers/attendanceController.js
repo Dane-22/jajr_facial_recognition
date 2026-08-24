@@ -2,9 +2,31 @@ const pool = require('../config/db');
 const { manualLog } = require('../middleware/audit');
 const crypto = require('crypto');
 
+function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // Radius of the earth in m
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c; // Distance in m
+}
+
+const getPublicSettings = async (req, res) => {
+  try {
+    const [settings] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key = "geofencing_enabled"');
+    const isEnabled = settings.length > 0 && settings[0].setting_value === 'true';
+    res.json({ geofencing_enabled: isEnabled });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const logAttendance = async (req, res) => {
   try {
-    const { userId, status, timestamp, signature } = req.body;
+    const { userId, status, timestamp, signature, latitude, longitude } = req.body;
 
     if (!userId || !status) {
       return res.status(400).json({ error: 'User ID and status are required' });
@@ -68,9 +90,28 @@ const logAttendance = async (req, res) => {
       });
     }
 
+    // Check geofencing
+    const [settings] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
+    const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
+    
+    if (settingsMap.geofencing_enabled === 'true') {
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: 'Location (latitude and longitude) is required when geofencing is enabled.' });
+      }
+      const distance = getDistanceFromLatLonInM(
+        parseFloat(latitude),
+        parseFloat(longitude),
+        parseFloat(settingsMap.office_latitude),
+        parseFloat(settingsMap.office_longitude)
+      );
+      if (distance > parseFloat(settingsMap.geofence_radius_meters)) {
+        return res.status(403).json({ error: `Check-in failed. You are ${Math.round(distance)}m away from the office, which exceeds the allowed ${settingsMap.geofence_radius_meters}m radius.` });
+      }
+    }
+
     const [result] = await pool.query(
-      'INSERT INTO attendance_logs (user_id, status, timestamp) VALUES (?, ?, NOW())',
-      [actualUserId, status]
+      'INSERT INTO attendance_logs (user_id, status, timestamp, latitude, longitude) VALUES (?, ?, NOW(), ?, ?)',
+      [actualUserId, status, latitude || null, longitude || null]
     );
 
     // Log attendance action
@@ -122,7 +163,7 @@ const getDailyLogs = async (req, res) => {
     
     const selectedDate = date || new Date().toISOString().split('T')[0];
     
-    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, users.name, users.role, users.id as user_id
+    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, users.name, users.role, users.id as user_id
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
        WHERE DATE(attendance_logs.timestamp) = ?`;
@@ -164,7 +205,7 @@ const getDailyLogs = async (req, res) => {
 const getAllLogs = async (req, res) => {
   try {
     const [logs] = await pool.query(
-      `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, users.name, users.role
+      `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, users.name, users.role
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
        ORDER BY attendance_logs.timestamp DESC
@@ -225,6 +266,7 @@ const getLastAttendance = async (req, res) => {
 };
 
 module.exports = {
+  getPublicSettings,
   logAttendance,
   getDailyLogs,
   getAllLogs,

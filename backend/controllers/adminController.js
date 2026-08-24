@@ -297,6 +297,10 @@ const getSettings = async (req, res) => {
       work_end_time: '17:00',
       auto_checkout: 'false',
       email_alerts: 'true',
+      geofencing_enabled: 'false',
+      office_latitude: '16.614897727493535',
+      office_longitude: '120.35392215651272',
+      geofence_radius_meters: '100',
       ...settingsMap
     };
 

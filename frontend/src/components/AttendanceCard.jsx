@@ -20,6 +20,16 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
   const processedDetectionRef = useRef(null);
   const loggedUsersRef = useRef(loggedUsers);
 
+  const [geofencingEnabled, setGeofencingEnabled] = useState(false);
+
+  useEffect(() => {
+    // Fetch public settings on mount
+    fetch(`${API_URL}/attendance/settings`)
+      .then(res => res.json())
+      .then(data => setGeofencingEnabled(data.geofencing_enabled))
+      .catch(err => console.error('Error fetching public settings:', err));
+  }, []);
+
   useEffect(() => {
     loggedUsersRef.current = loggedUsers;
   }, [loggedUsers]);
@@ -88,6 +98,20 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
       clearTimeout(debounceTimers.current[userId]);
     }
 
+    const handleLogError = (error) => {
+      console.error('Error logging attendance:', error);
+      // Remove from logged set if error occurred
+      setLoggedUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+      setToastMessage(error.message || 'Failed to log attendance. Please try again.');
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+    };
+
     try {
       // Add user to logged set for session tracking
       setLoggedUsers(prev => new Set([...prev, userId]));
@@ -109,87 +133,131 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         return;
       }
 
-      const timestamp = new Date().toISOString();
-      let signature = '';
-      try {
-        const encoder = new TextEncoder();
-        const key = await window.crypto.subtle.importKey(
-          'raw',
-          encoder.encode('kiosk_dev_secret_key_2026'),
-          { name: 'HMAC', hash: 'SHA-256' },
-          false,
-          ['sign']
-        );
-        const sigBuf = await window.crypto.subtle.sign(
-          'HMAC',
-          key,
-          encoder.encode(`${userId}:${status}:${timestamp}`)
-        );
-        signature = Array.from(new Uint8Array(sigBuf))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-      } catch (err) {
-        console.error('Failed to generate signature', err);
-      }
+      const performLog = async (lat, lng) => {
+        const timestamp = new Date().toISOString();
+        let signature = '';
+        try {
+          const encoder = new TextEncoder();
+          const key = await window.crypto.subtle.importKey(
+            'raw',
+            encoder.encode('kiosk_dev_secret_key_2026'),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+          );
+          const sigBuf = await window.crypto.subtle.sign(
+            'HMAC',
+            key,
+            encoder.encode(`${userId}:${status}:${timestamp}`)
+          );
+          signature = Array.from(new Uint8Array(sigBuf))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        } catch (err) {
+          console.error('Failed to generate signature', err);
+        }
 
-      const response = await fetch(`${API_URL}/attendance/log`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...KIOSK_HEADER
-        },
-        body: JSON.stringify({
-          userId,
-          status,
-          timestamp,
-          signature
-        }),
-      });
-
-      if (!response.ok) {
-        // Remove from logged set if API call failed
-        setLoggedUsers(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(userId);
-          return newSet;
+        const response = await fetch(`${API_URL}/attendance/log`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...KIOSK_HEADER
+          },
+          body: JSON.stringify({
+            userId,
+            status,
+            timestamp,
+            signature,
+            latitude: lat,
+            longitude: lng
+          }),
         });
-        throw new Error('Failed to log attendance');
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          // Remove from logged set if API call failed
+          setLoggedUsers(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(userId);
+            return newSet;
+          });
+          throw new Error(errorData.error || 'Failed to log attendance');
+        }
+
+        await response.json();
+        
+        // Update recent attendance list
+        setRecentAttendance(prev => [
+          {
+            userId,
+            userName,
+            status,
+            timestamp: new Date().toISOString(),
+          },
+          ...prev.slice(0, 4), // Keep only last 5
+        ]);
+
+        // Show success toast
+        setToastMessage(`${userName} - ${status} recorded successfully!`);
+        setToastType('success');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+
+        // Speak attendance notification
+        speakAttendance(userName, status);
+      };
+
+      if (geofencingEnabled) {
+        if (!navigator.geolocation) {
+          throw new Error('Geolocation is not supported by this browser.');
+        }
+        setToastMessage(`Calibrating precise location for ${userName}... Please wait.`);
+        setToastType('info');
+        setShowToast(true);
+        
+        let bestPosition = null;
+        let watchId;
+        const POLL_DURATION = 5000;
+        const TARGET_ACCURACY = 30; // Desired accuracy in meters
+
+        const finishCalibration = (errorMsg) => {
+          if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+          if (bestPosition) {
+            performLog(bestPosition.coords.latitude, bestPosition.coords.longitude).catch(handleLogError);
+          } else {
+            handleLogError(new Error(errorMsg || 'Location access denied or failed. Required for check-in.'));
+          }
+        };
+
+        const timeoutId = setTimeout(() => {
+          finishCalibration('Unable to get an accurate location in time. Please try again.');
+        }, POLL_DURATION);
+
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const accuracy = position.coords.accuracy;
+            console.log(`[Location Poll] Target: <${TARGET_ACCURACY}m | Current Accuracy: ${Math.round(accuracy)}m`);
+            
+            if (!bestPosition || accuracy < bestPosition.coords.accuracy) {
+              bestPosition = position;
+            }
+
+            if (accuracy <= TARGET_ACCURACY) {
+              clearTimeout(timeoutId);
+              finishCalibration();
+            }
+          },
+          (error) => {
+            console.error('Geolocation polling error:', error);
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: POLL_DURATION }
+        );
+      } else {
+        await performLog(null, null);
       }
-
-      await response.json();
-      
-      // Update recent attendance list
-      setRecentAttendance(prev => [
-        {
-          userId,
-          userName,
-          status,
-          timestamp: new Date().toISOString(),
-        },
-        ...prev.slice(0, 4), // Keep only last 5
-      ]);
-
-      // Show success toast
-      setToastMessage(`${userName} - ${status} recorded successfully!`);
-      setToastType('success');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-
-      // Speak attendance notification
-      speakAttendance(userName, status);
 
     } catch (error) {
-      console.error('Error logging attendance:', error);
-      // Remove from logged set if error occurred
-      setLoggedUsers(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(userId);
-        return newSet;
-      });
-      setToastMessage('Failed to log attendance. Please try again.');
-      setToastType('error');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      handleLogError(error);
     } finally {
       // Set debounce timer to remove from pending requests after delay
       debounceTimers.current[userId] = setTimeout(() => {
@@ -197,7 +265,7 @@ const AttendanceCard = ({ systemStatus, lastDetection }) => {
         delete debounceTimers.current[userId];
       }, DEBOUNCE_DELAY);
     }
-  }, []);
+  }, [geofencingEnabled]);
 
   /**
    * Handle face detection from camera with session-based logging
