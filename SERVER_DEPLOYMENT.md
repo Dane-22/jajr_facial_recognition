@@ -1,110 +1,167 @@
-# JAJR Facial Recognition System - Docker Deployment Guide
-
-This guide provides step-by-step instructions for deploying the JAJR Facial Recognition Attendance System to a production server using **Docker Compose**. 
-
-Using Docker is the safest and most reliable way to deploy the application on a shared production server, as it runs the Frontend (Nginx), Backend (Node.js), Database (MySQL), and Cache (Redis) in completely isolated containers.
+# JAJR Facial Recognition - System Deployment & Docker Operations Manual
 
 ---
 
-## 1. Server Prerequisites
-Ensure your production server (Ubuntu/Debian recommended) has Docker and Docker Compose installed.
+## 1. System Architecture & Topology
 
+**JAJR Facial Recognition** is structured as a multi-tier microservice architecture orchestrated via Docker Compose:
+
+```text
+                                  [ Client Browser ]
+                                          |
+                                          |  HTTP:80 / HTTPS:443
+                                          v
++---------------------------------------------------------------------------------------+
+|  HOST SERVER (Nginx Reverse Proxy)                                                    |
+|                                                                                       |
+|  - Routes attendance.yourdomain.com -> localhost:7001                                 |
+|  - Manages Let's Encrypt SSL Certificates for secure camera access                    |
++-----------------------------------+---------------------------------------------------+
+                                    |
+                                    v
++---------------------------------------------------------------------------------------+
+|  FRONTEND CONTAINER (Nginx Alpine Web Server)           [Port: 7001]                  |
+|                                                                                       |
+|  - Serves compiled React SPA bundle                                                   |
+|  - Handles SPA client-side routing fallback                                           |
+|  - Requests camera permissions (requires HTTPS)                                       |
++-----------------------------------+---------------------------------------------------+
+                                    |
+          Internal Docker Network   | (jajr_network)
+                                    v
++---------------------------------------------------------------------------------------+
+|  BACKEND CONTAINER (Node.js + Express)                  [Port: 7000]                  |
+|                                                                                       |
+|  - REST API Engine & Face Recognition Processing                                      |
+|  - Connects to isolated MySQL and Redis containers                                    |
++-------------------+-----------------------------------------------+-------------------+
+                    |                                               |
+                    v                                               v
++---------------------------------------+       +---------------------------------------+
+|  MYSQL CONTAINER (MySQL 8.0)          |       |  REDIS CONTAINER (Redis Alpine)       |
+|                                       |       |                                       |
+|  - Persistent Volume: db_data         |       |  - High-throughput In-Memory Cache    |
+|  - Internal Hostname: jajr_db         |       |  - Internal Hostname: jajr_redis      |
+|  - Database: facial_attendance_db     |       |                                       |
++---------------------------------------+       +---------------------------------------+
+```
+
+---
+
+## 2. Server Prerequisites & Specifications
+
+### Recommended Hardware
+| Resource | Minimum | Recommended (Production) |
+| :--- | :--- | :--- |
+| **CPU** | 1 vCPU (2.0 GHz+) | 2+ vCPUs |
+| **RAM** | 2 GB | 4 GB+ |
+| **Storage** | 20 GB SSD | 30+ GB SSD |
+
+### Operating System Support
+- **Ubuntu 24.04 LTS / 22.04 LTS** *(Highly Recommended)*
+- Debian 11/12
+
+---
+
+## 3. Server Preparation (Ubuntu)
+
+Log in to your server via SSH:
 ```bash
-# Update package list
+ssh root@[IP_ADDRESS]
+```
+
+### Step 3.1: Update System Packages
+```bash
 sudo apt update && sudo apt upgrade -y
+```
 
-# Install Docker
-sudo apt install -y docker.io
+### Step 3.2: Install Docker Engine
+```bash
+# Install Docker and Compose Plugin
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# Install Docker Compose Plugin
-sudo apt install -y docker-compose-plugin
-
-# Enable Docker to start on boot
+# Enable and start Docker service
 sudo systemctl enable docker
 sudo systemctl start docker
 ```
 
 ---
 
-## 2. Transferring the Project
-You must securely transfer your project files from your local machine to the production server.
+## 4. Application Deployment Workflow
 
-1. Open a **local** terminal (e.g., PowerShell on Windows) and use SCP:
-   ```powershell
-   scp -r c:\wamp64\www\jajr_facial_recognition root@[IP_ADDRESS]:/var/www/
-   ```
+### Step 4.1: Clone the Repository
+```bash
+# Clone the repository to your home directory (or /var/www/)
+git clone https://github.com/Dane-22/jajr_facial_recognition.git
+cd jajr_facial_recognition
+```
 
-2. SSH into your production server and navigate to the project directory:
-   ```bash
-   ssh root@[IP_ADDRESS]
-   cd /var/www/jajr_facial_recognition
-   ```
+### Step 4.2: Configure Environment Variables
+```bash
+cp backend/.env.example backend/.env
+nano backend/.env
+```
+Ensure you set your database passwords and API keys correctly.
 
----
-
-## 3. Starting the Application
-The `docker-compose.yml` file defines all 4 services. The backend will be exposed on **Port 7000** and the frontend on **Port 7001**. The MySQL and Redis databases are strictly internal and will not conflict with your server's existing databases.
-
-To build the images and start the cluster in the background, run:
+### Step 4.3: Build & Start Containers
+Run the cluster in detached mode. This will safely build the React frontend and Node backend.
 ```bash
 docker compose up -d --build
 ```
-*Note: This will take a few minutes as it downloads the base images and builds the React frontend.*
+Verify they are running: `docker compose ps`
 
-To check if all containers are running successfully:
+---
+
+## 5. Database Initialization
+
+When the MySQL container (`jajr_db`) starts for the first time, it is empty. Import your `.sql` backup file.
+
+Run this command to temporarily disable foreign key checks and pipe the SQL file directly into the running database container (replace the password with your actual root password):
+
 ```bash
-docker compose ps
+(echo "SET FOREIGN_KEY_CHECKS=0;" ; cat backend/facial_attendance_db.sql ; echo "SET FOREIGN_KEY_CHECKS=1;") | sudo docker exec -i jajr_db mysql -u root -pJaJr12390786@ facial_attendance_db
 ```
 
 ---
 
-## 4. Importing the Database
-When the MySQL container (`jajr_db`) starts for the first time, it is empty. You need to import your `.sql` backup file.
+## 6. Nginx Configuration (Host Reverse Proxy)
 
-Assuming your backup file is located at `backend/facial_attendance_db.sql`, run this command to pipe the SQL file directly into the running database container:
+Since the Dockerized frontend is running on **Port 7001**, configure your host server's Nginx to reverse proxy your public domain to this port.
 
+**1. Create the Nginx configuration file:**
 ```bash
-cat backend/facial_attendance_db.sql | docker exec -i jajr_db mysql -u root -pRoot_Secure_Pass2026! jajr_attendance
+sudo tee /etc/nginx/sites-available/jajr_attendance > /dev/null << 'EOF'
+server {
+    listen 80;
+    server_name attendance.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:7001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+EOF
+```
+
+**2. Enable the site and restart Nginx:**
+```bash
+sudo ln -s /etc/nginx/sites-available/jajr_attendance /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
 ```
 
 ---
 
-## 5. Nginx Configuration (Host Reverse Proxy)
-Since the Dockerized frontend is running on **Port 7001**, you should configure your host server's Nginx to reverse proxy your public domain (e.g., `attendance.yourdomain.com`) to this port.
+## 7. SSL/HTTPS Setup (Crucial)
 
-1. Create a new Nginx configuration file on the host:
-   ```bash
-   sudo nano /etc/nginx/sites-available/jajr_attendance
-   ```
-2. Paste the following configuration (replace `yourdomain.com` with your actual domain):
-   ```nginx
-   server {
-       listen 80;
-       server_name attendance.yourdomain.com;
+> [!WARNING]
+> **CRITICAL REQUIREMENT:** The HTML5 Geolocation API and WebRTC Camera APIs (used by Face-API.js) **will not work** in modern browsers unless the site is served over a secure HTTPS connection.
 
-       location / {
-           proxy_pass http://localhost:7001;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection 'upgrade';
-           proxy_set_header Host $host;
-           proxy_cache_bypass $http_upgrade;
-       }
-   }
-   ```
-3. Enable the site and restart Nginx:
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/jajr_attendance /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
-
----
-
-## 6. SSL/HTTPS Setup (Crucial)
-**CRITICAL REQUIREMENT:** The HTML5 Geolocation API and WebRTC Camera APIs (used by Face-API.js) **will not work** in modern browsers unless the site is served over a secure HTTPS connection.
-
-You must secure your domain using a free Let's Encrypt SSL certificate:
+Secure your domain using a free Let's Encrypt SSL certificate:
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d attendance.yourdomain.com
@@ -113,21 +170,41 @@ Follow the prompts to automatically redirect all HTTP traffic to HTTPS.
 
 ---
 
-## 7. Helpful Docker Commands
+## 8. Continuous Deployment Workflow (Pushing Updates)
 
-- **View Logs (All containers):**
-  ```bash
-  docker compose logs -f
-  ```
-- **View Logs (Backend only):**
-  ```bash
-  docker compose logs -f backend
-  ```
-- **Stop the application:**
-  ```bash
-  docker compose down
-  ```
-- **Restart the application (e.g., after a code change):**
-  ```bash
-  docker compose up -d --build
-  ```
+When you make changes to your code locally and want to update the production server, follow this standard Git deployment workflow:
+
+**1. On your local machine (Push to GitHub):**
+```bash
+git add .
+git commit -m "Describe your updates here"
+git push origin main
+```
+
+**2. On your production server (Pull & Rebuild):**
+```bash
+# SSH into the server
+ssh root@[IP_ADDRESS]
+
+# Navigate to the project directory
+cd ~/jajr_facial_recognition
+
+# Pull the latest changes from GitHub
+git pull origin main
+
+# Rebuild and restart the containers in the background
+docker compose up -d --build
+```
+> [!TIP]
+> Docker is smart enough to only rebuild the parts of the application that have changed, and it will do so without interrupting or clearing your database.
+
+---
+
+## 9. Helpful Docker Commands
+
+| Command | Description |
+| :--- | :--- |
+| `docker compose logs -f` | View logs for all containers in real-time |
+| `docker compose logs -f backend` | View logs for the backend container only |
+| `docker compose down` | Stop and remove the application containers |
+| `docker compose up -d --build` | Rebuild and start the application |

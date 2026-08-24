@@ -6,10 +6,10 @@ services:
     container_name: jajr_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-Root_Secure_Pass2026!}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-JaJr12390786#}
       MYSQL_DATABASE: jajr_attendance
       MYSQL_USER: jajr_admin
-      MYSQL_PASSWORD: ${DB_PASSWORD:-Jajr_Secure_Pass2026!}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-JaJr12390786#}
     volumes:
       - db_data:/var/lib/mysql
     # No ports exposed to host. Only accessible within Docker network.
