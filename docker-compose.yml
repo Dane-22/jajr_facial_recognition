@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: jajr_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-Root_Secure_Pass2026!}
+      MYSQL_DATABASE: jajr_attendance
+      MYSQL_USER: jajr_admin
+      MYSQL_PASSWORD: ${DB_PASSWORD:-Jajr_Secure_Pass2026!}
+    volumes:
+      - db_data:/var/lib/mysql
+    # No ports exposed to host. Only accessible within Docker network.
+    networks:
+      - jajr_network
+
+  redis:
+    image: redis:alpine
+    container_name: jajr_redis
+    restart: always
+    # No ports exposed to host. Only accessible within Docker network.
+    networks:
+      - jajr_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jajr_backend
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=7000
+      - DB_HOST=db
+      - DB_USER=jajr_admin
+      - DB_PASSWORD=${DB_PASSWORD:-Jajr_Secure_Pass2026!}
+      - DB_NAME=jajr_attendance
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-super_secret_production_key_123}
+      - KIOSK_API_KEY=${KIOSK_API_KEY:-kiosk_dev_secret_key_2026}
+    depends_on:
+      - db
+      - redis
+    # You can optionally expose the backend port to the host if needed
+    ports:
+      - "7000:7000"
+    networks:
+      - jajr_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jajr_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "7001:80"
+    networks:
+      - jajr_network
+
+volumes:
+  db_data:
+
+networks:
+  jajr_network:
+    driver: bridge
