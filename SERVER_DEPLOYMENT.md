@@ -31,12 +31,12 @@ You must securely transfer your project files from your local machine to the pro
 
 1. Open a **local** terminal (e.g., PowerShell on Windows) and use SCP:
    ```powershell
-   scp -r c:\wamp64\www\jajr_facial_recognition root@YOUR_SERVER_IP:/var/www/
+   scp -r c:\wamp64\www\jajr_facial_recognition root@[IP_ADDRESS]:/var/www/
    ```
 
 2. SSH into your production server and navigate to the project directory:
    ```bash
-   ssh root@YOUR_SERVER_IP
+   ssh root@[IP_ADDRESS]
    cd /var/www/jajr_facial_recognition
    ```
 
