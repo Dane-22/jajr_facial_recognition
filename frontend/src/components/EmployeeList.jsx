@@ -65,7 +65,7 @@ const EmployeeList = () => {
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
       
-      const response = await fetch(`http://localhost:5000/api/employees?${params.toString()}`, {
+      const response = await fetch(`/api/employees?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -244,7 +244,7 @@ const EmployeeList = () => {
 
     try {
       const token = localStorage.getItem('admin_token');
-      const response = await fetch(`http://localhost:5000/api/employees/${id}`, {
+      const response = await fetch(`/api/employees/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -275,8 +275,8 @@ const EmployeeList = () => {
     try {
       const token = localStorage.getItem('admin_token');
       const url = editingEmployee 
-        ? `http://localhost:5000/api/employees/${editingEmployee.id}`
-        : 'http://localhost:5000/api/employees';
+        ? `/api/employees/${editingEmployee.id}`
+        : '/api/employees';
       
       const method = editingEmployee ? 'PUT' : 'POST';
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useSocket from '../hooks/useSocket';
 import Table from './UI/Table';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 const DailyLogs = () => {
   const [logs, setLogs] = useState([]);

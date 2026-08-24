@@ -38,16 +38,16 @@ const AttendanceReports = () => {
       
       switch (reportType) {
         case 'daily':
-          url = 'http://localhost:5000/api/reports/daily';
+          url = '/api/reports/daily';
           params.append('date', date);
           break;
         case 'weekly':
-          url = 'http://localhost:5000/api/reports/weekly';
+          url = '/api/reports/weekly';
           params.append('startDate', startDate);
           params.append('endDate', endDate);
           break;
         case 'monthly':
-          url = 'http://localhost:5000/api/reports/monthly';
+          url = '/api/reports/monthly';
           params.append('year', year);
           params.append('month', month);
           break;

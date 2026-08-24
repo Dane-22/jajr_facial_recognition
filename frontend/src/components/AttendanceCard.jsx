@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 const AttendanceCard = ({ systemStatus, lastDetection }) => {
   const [recentAttendance, setRecentAttendance] = useState([]);

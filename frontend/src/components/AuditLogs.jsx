@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Table from './UI/Table';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);

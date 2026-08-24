@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = '';
 
 /**
  * useSocket — connects to the Socket.IO server and joins the admin room.

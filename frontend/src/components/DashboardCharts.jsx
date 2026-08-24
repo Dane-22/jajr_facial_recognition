@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import useSocket from '../hooks/useSocket';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 // ─── Theme tokens ──────────────────────────────────────────────────────────────
 const THEMES = {

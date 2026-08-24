@@ -78,7 +78,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
   // Initialize Socket.IO Client & Fetch Rooms
   useEffect(() => {
     const token = getAuthToken();
-    const socket = io('http://localhost:5000', {
+    const socket = io('', {
       auth: { token },
       transports: ['websocket', 'polling']
     });
