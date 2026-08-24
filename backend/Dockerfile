@@ -13,4 +13,4 @@ COPY . .
 EXPOSE 7000
 
 # Start backend server
-CMD ["node", "index.js"]
+CMD ["npm", "start"]
