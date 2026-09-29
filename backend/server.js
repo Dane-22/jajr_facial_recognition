@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const path = require('path');
 const pool = require('./config/db');
+const { startSyncService } = require('./services/googleSheetsSync');
 
 const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
@@ -202,4 +203,7 @@ server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   // Attempt Redis connection — falls back to node-cache if unavailable
   await connectRedis();
+  
+  // Start background Google Sheets sync
+  startSyncService();
 });
