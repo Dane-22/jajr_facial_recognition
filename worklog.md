@@ -97,3 +97,8 @@ This section supersedes the earlier statement that no application fixes had been
 - Measure recognition accuracy, camera resolution, startup time, and scan latency on the affected low-spec phones. No physical device benchmark or production scan was completed.
 - Resolve the mobile scaffold lint errors and run end-to-end and security checks before a production rollout. Review chat room membership enforcement separately.
 - Keep `facial_attendance_db (1).sql` out of Git: it is an untracked full database dump containing attendance and audit data. No database dump is included in this update.
+
+### Deployment manual correction
+
+- Replaced the copied ENG PLANNER `SYSTEM_DEPLOYMENT_MANUAL.md` with a JAJR quick reference. The observed production checkout remains `/root/jajr_facial_recognition`; an installation intentionally placed under `/var/www` uses `/var/www/jajr_facial_recognition`.
+- Updated `SERVER_DEPLOYMENT.md` to point to the corrected quick reference and reflect the current Compose environment and root `.dockerignore`. No server files were changed by this documentation correction.

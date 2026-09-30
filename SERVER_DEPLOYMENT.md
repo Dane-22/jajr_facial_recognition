@@ -1,6 +1,6 @@
 # JAJR deployment manual
 
-Current target: Ubuntu 24.04, `/root/jajr_facial_recognition`, `https://jajr.xandree.com` (`72.62.254.60`). Run `powershell` blocks locally on Windows and `bash` blocks inside the SSH session. This manual describes the repository's Docker Compose deployment. `SYSTEM_DEPLOYMENT_MANUAL.md` describes an unrelated project; `docs/DEPLOYMENT_PLAN.md` describes an older PM2 setup.
+Current target: Ubuntu 24.04, `/root/jajr_facial_recognition`, `https://jajr.xandree.com` (`72.62.254.60`). Run `powershell` blocks locally on Windows and `bash` blocks inside the SSH session. This manual describes the repository's Docker Compose deployment. `SYSTEM_DEPLOYMENT_MANUAL.md` is a short JAJR quick reference; `docs/DEPLOYMENT_PLAN.md` describes an older PM2 setup.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ The host Nginx proxies all site paths to `127.0.0.1:7001`. The frontend containe
 
 Install Git, Docker Engine with the Compose plugin, host Nginx, and Certbot with its Nginx plugin on Ubuntu 24.04. Confirm `docker compose version`, `nginx -t`, the domain's DNS A record, and access to ports 80/443. Keep SSH allowed in the server and provider firewalls. Restrict external access to ports 7000/7001. Binding them to `127.0.0.1` in Compose is preferable after verifying no kiosk or mobile client connects directly to 7000.
 
-The current `docker-compose.yml` has **different fallback passwords** for MySQL's `MYSQL_PASSWORD` and the backend's `DB_PASSWORD`. Create `/root/jajr_facial_recognition/.env` with explicit values so both services receive the same app password:
+The current `docker-compose.yml` has fallback credentials that must be overridden for deployment. Create `/root/jajr_facial_recognition/.env` with explicit values so MySQL and the backend receive the same app password:
 
 ```dotenv
 DB_ROOT_PASSWORD=<unique strong root password>
@@ -28,13 +28,13 @@ KIOSK_API_KEY=<long random secret>
 FRONTEND_URL=https://jajr.xandree.com
 ```
 
-Generate each secret separately, for example with `openssl rand -hex 32`. Protect `.env` with `chmod 600 .env`; never commit or paste its contents. The root `.env` is read by Compose for interpolation. To pass `FRONTEND_URL` into the backend container, add this entry to the backend service's `environment` list in `docker-compose.yml`:
+Generate each secret separately, for example with `openssl rand -hex 32`. Protect `.env` with `chmod 600 .env`; never commit or paste its contents. The root `.env` is read by Compose for interpolation. The backend service already passes `FRONTEND_URL` from Compose:
 
 ```yaml
 - FRONTEND_URL=${FRONTEND_URL:?Set FRONTEND_URL in .env}
 ```
 
-The backend uses that value for HTTP and Socket.IO CORS; otherwise it defaults to `http://localhost:3000`. `backend/.env.example` is a local-development template with different database settings. Do not copy it into production. Because `backend/Dockerfile` runs `COPY . .` and there is no `backend/.dockerignore`, a local `backend/.env` can be baked into an image. Before building, add `backend/.dockerignore` containing at least `.env`, `backups/`, `uploads/`, and `node_modules/`; supply runtime secrets through Compose. Changing `.env` later does not rotate a MySQL user's password in an existing `db_data` volume.
+The backend uses that value for HTTP and Socket.IO CORS; otherwise it defaults to `http://localhost:3000`. `backend/.env.example` is a local-development template with different database settings. Do not copy it into production. The root `.dockerignore` excludes environment files, backups, uploads, and dependencies from the backend build context; supply runtime secrets through Compose. Changing `.env` later does not rotate a MySQL user's password in an existing `db_data` volume.
 
 For chat attachments, add persistent storage for `/app/uploads` in the backend service and proxy `/uploads/` from `frontend/nginx.conf` to `http://backend:7000` without stripping the path. For a fresh install, these entries illustrate the required changes:
 
