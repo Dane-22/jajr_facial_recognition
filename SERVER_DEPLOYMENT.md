@@ -185,6 +185,24 @@ Keep backups outside the checkout and copy them to secure off-server storage. `d
 | Chat attachment returns `404` or HTML | Add `/uploads/` proxy and persistent `/app/uploads` storage. |
 | Socket.IO fails | Check `/socket.io/` forwarding and backend `FRONTEND_URL`. |
 
+### Production settings return 500 with MySQL access denied
+
+If backend logs say `Access denied for user 'jajr_admin'` while `/api/attendance/settings` returns 500, the API cannot read `system_settings`. Compose environment variables do not update the MySQL account password in an existing `db_data` volume. Do not remove the volume or re-import a SQL dump to fix credentials.
+
+From `/root/jajr_facial_recognition`, test the backend login without printing its password:
+
+```bash
+docker compose exec backend node -e 'const mysql=require("mysql2/promise"); mysql.createConnection({host:process.env.DB_HOST,user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME}).then(async db=>{console.log("Database login OK");await db.end()}).catch(error=>{console.error(error.code);process.exitCode=1})'
+```
+
+Check whether the MySQL root password supplied to the running container still works:
+
+```bash
+docker compose exec db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -e "SELECT CURRENT_USER()"'
+```
+
+If the original `jajr_admin` password is known, set root `.env` `DB_PASSWORD` to that existing password and recreate the backend with `docker compose up -d --force-recreate backend`. If it is unknown **and root login succeeds**, inspect the existing account host with `SELECT User,Host FROM mysql.user WHERE User='jajr_admin';` in an interactive root MySQL session. Set `DB_PASSWORD` in root `.env` to a new strong value, then run `ALTER USER 'jajr_admin'@'%' IDENTIFIED BY '<the same new value>';` in that session, using the actual host returned by the query if it is not `%`. Start the session with `docker compose exec -e MYSQL_HISTFILE=/dev/null db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot'` to avoid saving the SQL command in the MySQL history file. Recreate the backend and rerun the login check above. Do not paste passwords or full `.env` contents into logs or chat. If root login also fails, recover the original root credential from the server's secure records before changing accounts.
+
 ## Review of the supplied SSH session
 
 - The first SSH password was rejected and the next succeeded; this does not indicate an application fault.

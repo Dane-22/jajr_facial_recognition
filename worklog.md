@@ -102,3 +102,10 @@ This section supersedes the earlier statement that no application fixes had been
 
 - Replaced the copied ENG PLANNER `SYSTEM_DEPLOYMENT_MANUAL.md` with a JAJR quick reference. The observed production checkout remains `/root/jajr_facial_recognition`; an installation intentionally placed under `/var/www` uses `/var/www/jajr_facial_recognition`.
 - Updated `SERVER_DEPLOYMENT.md` to point to the corrected quick reference and reflect the current Compose environment and root `.dockerignore`. No server files were changed by this documentation correction.
+
+### Production log diagnosis, 2026-09-30
+
+- Operator-provided Compose logs show `Access denied for user 'jajr_admin'` during startup migration and repeated `GET /api/attendance/settings` 500 responses. The settings handler reads MySQL, so the database login failure is the immediate cause of scanner startup failure. A Compose environment change does not rotate the password stored in the existing MySQL volume.
+- Set Express to trust private Docker proxy addresses for client IP handling, removed obsolete Compose `version`, and added server-side logging when public attendance settings cannot be read. These changes address separate warnings; they do not repair the production MySQL account.
+- Added a credential verification and recovery procedure to `SERVER_DEPLOYMENT.md` that preserves `db_data`. No remote password, account, or data was changed from this workspace.
+- Backend `npm test` passed (7 tests) and `node --check server.js` passed. Local `docker compose config --quiet` could not run because Docker is unavailable in this Windows workspace. Production credential reconciliation and a live endpoint check remain pending on the server.

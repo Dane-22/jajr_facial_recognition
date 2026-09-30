@@ -24,6 +24,9 @@ const faceRoutes = require('./routes/faceRoutes');
 const { loadModels } = require('./services/faceRecognition');
 
 const app = express();
+// Trust the private Docker proxy address, not an arbitrary public client that
+// can reach the published backend port and supply its own X-Forwarded-For.
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 

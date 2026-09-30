@@ -20,6 +20,7 @@ const getPublicSettings = async (req, res) => {
     const isEnabled = settings.length > 0 && settings[0].setting_value === 'true';
     res.json({ geofencing_enabled: isEnabled });
   } catch (error) {
+    console.error('[AttendanceSettings] Failed to read settings:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
