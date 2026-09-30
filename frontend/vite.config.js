@@ -34,12 +34,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        globIgnores: ['**/assets/AdminLayout-*.js', '**/assets/face-api-*.js', '**/assets/html2canvas.esm-*.js'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/justadudewhohacks\.github\.io\/face-api\.js\/models\/.*/i,
+            urlPattern: /\/models\/(?:tiny_face_detector|face_landmark_68|face_recognition)_model(?:-weights_manifest\.json|\.bin)$/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'face-api-models-cdn',
+              cacheName: 'face-models-v1',
               expiration: {
                 maxEntries: 20,
                 maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
@@ -57,7 +58,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: globalThis.process.env.VITE_API_PROXY_TARGET || 'http://localhost:7000',
         changeOrigin: true,
       },
     },

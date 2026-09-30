@@ -14,6 +14,24 @@ const pool = mysql.createPool({
 // Run auto-migrations on startup
 const runMigrations = async () => {
   try {
+    // Attendance writes include coordinates even when geofencing is disabled.
+    // Older local databases may still have the original four-column table.
+    const [attendanceColumns] = await pool.query('SHOW COLUMNS FROM attendance_logs');
+    const attendanceColumnNames = new Set(attendanceColumns.map(column => column.Field));
+    for (const [column, definition] of [
+      ['latitude', 'DECIMAL(10,8) NULL'],
+      ['longitude', 'DECIMAL(11,8) NULL']
+    ]) {
+      if (!attendanceColumnNames.has(column)) {
+        try {
+          await pool.query(`ALTER TABLE attendance_logs ADD COLUMN ${column} ${definition}`);
+          console.log(`[DB Migration] Added ${column} to attendance_logs`);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') throw error;
+        }
+      }
+    }
+
     // 1. Add position column to admins table if not present
     const [columns] = await pool.query(`SHOW COLUMNS FROM admins LIKE 'position'`);
     if (columns.length === 0) {

@@ -1,20 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import React from 'react';
 import App from './App';
-import * as faceApiLoader from './utils/faceApiLoader';
-
-// Mock external sub-components and face loader functions
-vi.mock('./utils/faceApiLoader', () => ({
-  loadModels: vi.fn(),
-  initializeFaceMatcher: vi.fn(),
-}));
 
 vi.mock('./components/CameraFeed', () => ({
-  default: ({ isModelsLoaded }) => (
-    <div data-testid="camera-feed-mock">Camera Feed Active (Models: {String(isModelsLoaded)})</div>
-  ),
+  default: () => <div data-testid="camera-feed-mock">Camera Feed Active</div>,
 }));
 
 vi.mock('./components/AttendanceCard', () => ({
@@ -27,22 +18,23 @@ vi.mock('./components/PWAInstallBanner', () => ({
 
 describe('App Component Unit & Integration Tests', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
     localStorage.clear();
   });
 
-  it('renders loading state initially while models are initializing', async () => {
-    faceApiLoader.loadModels.mockImplementation(() => new Promise(() => {})); // pending promise
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('shows a connection state while the attendance server is responding', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 
     render(<App />);
 
-    expect(screen.getByText(/Loading face recognition models/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Connecting to attendance server/i)).toBeInTheDocument());
     expect(screen.getByTestId('attendance-card-mock')).toHaveTextContent('Status: loading');
   });
 
-  it('renders ready state and camera feed upon successful model initialization', async () => {
-    faceApiLoader.loadModels.mockResolvedValue(true);
-    faceApiLoader.initializeFaceMatcher.mockResolvedValue({ findBestMatch: vi.fn() });
+  it('shows the automatic camera when the attendance server is ready', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
 
     render(<App />);
 
@@ -52,23 +44,22 @@ describe('App Component Unit & Integration Tests', () => {
     expect(screen.getByTestId('attendance-card-mock')).toHaveTextContent('Status: ready');
   });
 
-  it('renders error state when model initialization fails', async () => {
-    faceApiLoader.loadModels.mockRejectedValue(new Error('Failed to load weights'));
+  it('shows a connection error when the attendance server fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to initialize system/i)).toBeInTheDocument();
+      expect(screen.getByText(/Attendance server unavailable. Check your connection/i)).toBeInTheDocument();
     });
     expect(screen.getByTestId('attendance-card-mock')).toHaveTextContent('Status: error');
   });
 
-  it('redirects unauthenticated users attempting to access /admin/dashboard to /admin/login', () => {
+  it('redirects unauthenticated users attempting to access /admin/dashboard to /admin/login', async () => {
     window.history.pushState({}, 'Test page', '/admin/dashboard');
 
     render(<App />);
 
-    // Since admin_token is missing in localStorage, ProtectedRoute redirects to /admin/login
-    expect(window.location.pathname).toBe('/admin/login');
+    await waitFor(() => expect(window.location.pathname).toBe('/admin/login'));
   });
 });

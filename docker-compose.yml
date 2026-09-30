@@ -26,8 +26,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: jajr_backend
     restart: always
     environment:
@@ -35,12 +35,13 @@ services:
       - PORT=7000
       - DB_HOST=db
       - DB_USER=jajr_admin
-      - DB_PASSWORD=${DB_PASSWORD:-Jajr_Secure_Pass2026!}
+      - DB_PASSWORD=${DB_PASSWORD:-JaJr12390786#}
       - DB_NAME=jajr_attendance
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET:-super_secret_production_key_123}
       - KIOSK_API_KEY=${KIOSK_API_KEY:-kiosk_dev_secret_key_2026}
+      - FRONTEND_URL=${FRONTEND_URL:-https://jajr.xandree.com}
     depends_on:
       - db
       - redis

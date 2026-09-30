@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import CameraFeed from './components/CameraFeed';
-import AttendanceCard from './components/AttendanceCard';
-import AdminLogin from './components/AdminLogin';
-import AdminLayout from './components/AdminLayout';
-import { loadModels, initializeFaceMatcher } from './utils/faceApiLoader';
+const CameraFeed = lazy(() => import('./components/CameraFeed'));
+const AttendanceCard = lazy(() => import('./components/AttendanceCard'));
+const AdminLogin = lazy(() => import('./components/AdminLogin'));
+const AdminLayout = lazy(() => import('./components/AdminLayout'));
 
 import PWAInstallBanner from './components/PWAInstallBanner';
 
@@ -19,29 +18,20 @@ const ProtectedRoute = ({ children }) => {
 
 function MainApp() {
   const [systemStatus, setSystemStatus] = useState('loading');
-  const [faceMatcher, setFaceMatcher] = useState(null);
   const [lastDetection, setLastDetection] = useState(null);
 
   useEffect(() => {
-    const initializeSystem = async () => {
-      try {
-        setSystemStatus('loading');
-        await loadModels();
-        const matcher = await initializeFaceMatcher();
-        setFaceMatcher(matcher);
-        setSystemStatus('ready');
-      } catch (error) {
-        console.error('Error initializing system:', error);
-        setSystemStatus('error');
-      }
-    };
-
-    initializeSystem();
+    let mounted = true;
+    fetch('/api/attendance/settings', { cache: 'no-store' })
+      .then(response => { if (!response.ok) throw new Error('Attendance server unavailable'); return response.json(); })
+      .then(() => { if (mounted) setSystemStatus('ready'); })
+      .catch(() => { if (mounted) setSystemStatus('error'); });
+    return () => { mounted = false; };
   }, []);
 
-  const handleFaceDetected = (detection) => {
+  const handleFaceDetected = useCallback((detection) => {
     setLastDetection(detection);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
@@ -91,30 +81,9 @@ function MainApp() {
                 </svg>
                 Camera Feed
               </h2>
-              {systemStatus === 'loading' && (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
-                  <p className="text-gray-600 font-medium">Loading face recognition models...</p>
-                  <p className="text-gray-400 text-sm mt-1">This may take a moment</p>
-                </div>
-              )}
-              {systemStatus === 'error' && (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-red-600 font-medium">Failed to initialize system</p>
-                  <p className="text-gray-400 text-sm mt-1">Please refresh the page</p>
-                </div>
-              )}
-              {systemStatus === 'ready' && (
-                <CameraFeed
-                  onFaceDetected={handleFaceDetected}
-                  faceMatcher={faceMatcher}
-                  isModelsLoaded={true} />
-              )}
+              {systemStatus === 'loading' && <p className="py-12 text-center text-gray-600">Connecting to attendance server...</p>}
+              {systemStatus === 'error' && <div className="py-12 text-center"><p className="text-red-600">Attendance server unavailable. Check your connection.</p><button type="button" onClick={() => window.location.reload()} className="mt-3 text-indigo-600 underline">Retry</button></div>}
+              {systemStatus === 'ready' && <CameraFeed onFaceDetected={handleFaceDetected} />}
             </div>
 
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
@@ -139,7 +108,7 @@ function MainApp() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-white">4.</span>
-                  <span>Attendance will be logged automatically when recognized</span>
+                  <span>Hold still while the kiosk scans and records attendance automatically</span>
                 </li>
               </ul>
             </div>
@@ -167,7 +136,7 @@ function MainApp() {
 function App() {
   return (
     <Router>
-      <Routes>
+      <Suspense fallback={<div className="p-8 text-center">Loading...</div>}><Routes>
         <Route path="/" element={<MainApp />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
@@ -179,7 +148,7 @@ function App() {
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes></Suspense>
     </Router>
   );
 }

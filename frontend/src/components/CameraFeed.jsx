@@ -1,628 +1,294 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import * as faceapi from 'face-api.js';
-import { cameraManager } from '../utils/cameraManager';
+import { useEffect, useRef, useState } from 'react';
 
-const CameraFeed = ({ onFaceDetected, faceMatcher, isModelsLoaded }) => {
-  const canvasRef = useRef(null);
-  const [isStreamActive, setIsStreamActive] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
-  const [cameraStatus, setCameraStatus] = useState('initializing'); // initializing, active, idle, error, motion_detection
-  const [countdown, setCountdown] = useState(0); // Countdown timer in seconds
-  // eslint-disable-next-line no-unused-vars
-  const [isMotionDetectionActive, setIsMotionDetectionActive] = useState(false);
+const STORAGE_KEY = 'jajr_kiosk_recent_faces';
+
+function storedFaces() {
+  try {
+    const ids = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+    return new Set(Array.isArray(ids) ? ids.filter(Number.isInteger).slice(0, 100) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export default function CameraFeed({ onFaceDetected }) {
   const videoRef = useRef(null);
-  const detectionIntervalRef = useRef(null);
-  const countdownIntervalRef = useRef(null);
-  const lastRecognitionTimeRef = useRef(0);
-  const lastRecognizedFacesRef = useRef([]);
+  const [status, setStatus] = useState('starting');
+  const [message, setMessage] = useState('Starting camera...');
+  const [resolution, setResolution] = useState('');
+  const [confirmation, setConfirmation] = useState(null);
 
-  // Confidence thresholds for face recognition
-  const HIGH_CONFIDENCE_THRESHOLD = 0.4; // Log attendance
-  const LOW_CONFIDENCE_THRESHOLD = 0.6; // Show warning but don't log
-
-  // Warning state for confidence issues
-  const [warningMessage, setWarningMessage] = useState(null);
-  const [warningType, setWarningType] = useState(null); // 'low-confidence' or 'unknown'
-  const warningTimeoutRef = useRef(null);
-
-  // Dwell time tracking for attendance logging
-  const MIN_DWELL_TIME = 3000; // 3 seconds minimum dwell time
-  const [dwellStartTime, setDwellStartTime] = useState(null);
-  const [isDwelling, setIsDwelling] = useState(false);
-  const [dwellCountdown, setDwellCountdown] = useState(0);
-  const dwellIntervalRef = useRef(null);
-  const currentUserIdRef = useRef(null); // Track which user is dwelling
-
-  /**
-   * Show warning message with auto-dismiss
-   */
-  const showWarning = useCallback((message, type) => {
-    setWarningMessage(message);
-    setWarningType(type);
-
-    // Clear existing timeout
-    if (warningTimeoutRef.current) {
-      clearTimeout(warningTimeoutRef.current);
-    }
-
-    // Auto-dismiss after 3 seconds
-    warningTimeoutRef.current = setTimeout(() => {
-      setWarningMessage(null);
-      setWarningType(null);
-    }, 3000);
-  }, []);
-
-  /**
-   * Reset dwell time tracking
-   */
-  const resetDwellTracking = useCallback(() => {
-    if (dwellIntervalRef.current) {
-      clearInterval(dwellIntervalRef.current);
-      dwellIntervalRef.current = null;
-    }
-    setDwellStartTime(null);
-    setIsDwelling(false);
-    setDwellCountdown(0);
-    currentUserIdRef.current = null;
-  }, []);
-
-  /**
-   * Start dwell time tracking for a user
-   */
-  const startDwellTracking = useCallback((userId) => {
-    // If already dwelling for same user, don't reset
-    if (isDwelling && currentUserIdRef.current === userId) {
-      return;
-    }
-
-    // Clear any existing dwell tracking
-    resetDwellTracking();
-
-    // Start new dwell tracking
-    setDwellStartTime(Date.now());
-    setIsDwelling(true);
-    setDwellCountdown(MIN_DWELL_TIME / 1000);
-    currentUserIdRef.current = userId;
-  }, [isDwelling, resetDwellTracking]);
-
-  /**
-   * Countdown timer for dwell time
-   */
   useEffect(() => {
-    if (isDwelling && dwellCountdown > 0) {
-      dwellIntervalRef.current = setInterval(() => {
-        setDwellCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(dwellIntervalRef.current);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (dwellIntervalRef.current) {
-        clearInterval(dwellIntervalRef.current);
-        dwellIntervalRef.current = null;
-      }
-    }
+    let disposed = false;
+    let active = false;
+    let starting = false;
+    let busy = false;
+    let stream = null;
+    let timer = null;
+    let confirmationTimer = null;
+    let request = null;
+    let generation = 0;
+    let previousPixels = null;
+    let lastSent = 0;
+    let recentFace = false;
+    let emptyFrames = 0;
+    let serverFailures = 0;
+    let geofencingEnabled = false;
+    let location = null;
+    const blocked = storedFaces();
+    const motionCanvas = document.createElement('canvas');
+    motionCanvas.width = 32;
+    motionCanvas.height = 24;
 
-    return () => {
-      if (dwellIntervalRef.current) {
-        clearInterval(dwellIntervalRef.current);
-      }
+    const saveBlocked = () => {
+      try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...blocked])); } catch { /* Storage may be disabled. */ }
     };
-  }, [isDwelling]);
 
-  /**
-   * Initialize webcam stream using CameraManager
-   */
-  const startVideo = useCallback(async () => {
-    try {
-      setCameraStatus('initializing');
-      setCameraError(null);
+    const stop = () => {
+      generation += 1;
+      active = false;
+      busy = false;
+      clearTimeout(timer);
+      clearTimeout(confirmationTimer);
+      if (!disposed) setConfirmation(null);
+      request?.abort();
+      stream?.getTracks().forEach(track => track.stop());
+      stream = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+      previousPixels = null;
+    };
 
-      const stream = await cameraManager.ensureActive();
+    const schedule = delay => {
+      clearTimeout(timer);
+      if (active && !disposed && navigator.onLine) timer = setTimeout(loop, delay);
+    };
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsStreamActive(true);
-        setCameraStatus('active');
+    const hasMotion = video => {
+      const context = motionCanvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(video, 0, 0, 32, 24);
+      const pixels = context.getImageData(0, 0, 32, 24).data;
+      if (!previousPixels) { previousPixels = new Uint8ClampedArray(pixels); return true; }
+      let difference = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        difference += Math.abs(pixels[i] - previousPixels[i]);
       }
-    } catch (error) {
-      console.error('Error accessing webcam:', error);
-      setCameraError(cameraManager.getErrorMessage(error));
-      setCameraStatus('error');
-      setIsStreamActive(false);
-    }
-  }, []);
+      previousPixels = new Uint8ClampedArray(pixels);
+      return difference / (32 * 24) > 7;
+    };
 
-  const stopVideo = useCallback(() => {
-    cameraManager.stopCamera();
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject = null;
-    }
-    setIsStreamActive(false);
-    setCameraStatus('idle');
-    resetDwellTracking();
-  }, [resetDwellTracking]);
+    const currentLocation = async () => {
+      if (!geofencingEnabled) return {};
+      if (location && Date.now() - location.time < 15000) return location.coords;
+      if (!navigator.geolocation) throw new Error('Location access is required at this site.');
+      const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true, timeout: 10000, maximumAge: 15000
+      }));
+      location = { time: Date.now(), coords: { latitude: position.coords.latitude, longitude: position.coords.longitude } };
+      return location.coords;
+    };
 
-  /**
-   * Detect faces in video stream
-   */
-  const detectFaces = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !isModelsLoaded) {
-      return;
-    }
-
-    // If no face matcher, just detect faces without recognition
-    if (!faceMatcher) {
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
-    if (video.readyState !== 4) {
-      return;
-    }
-
-    // Register activity to prevent idle timeout
-    cameraManager.registerActivity();
-
-    // Set canvas dimensions to match video
-    const displaySize = { width: video.videoWidth, height: video.videoHeight };
-    faceapi.matchDimensions(canvas, displaySize);
-
-    const now = Date.now();
-    const shouldRecognize = now - lastRecognitionTimeRef.current > 1000;
-    
-    let resizedDetections = [];
-    
-    if (shouldRecognize) {
-      // Detect faces with heavy recognition
-      const detections = await faceapi
-        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-        
-      resizedDetections = faceapi.resizeResults(detections, displaySize);
-      lastRecognitionTimeRef.current = now;
-      
-      // Update cached labels
-      lastRecognizedFacesRef.current = resizedDetections.map(det => {
-        const bestMatch = faceMatcher.findBestMatch(det.descriptor);
-        return {
-          box: det.detection.box,
-          label: bestMatch.label,
-          distance: bestMatch.distance,
-          descriptor: det.descriptor
-        };
-      });
-      
-      // Register face detection to reset face timeout and countdown
-      if (detections.length > 0) {
-        cameraManager.registerFaceDetection();
-        setCountdown(5); // Reset countdown to 5 seconds
+    async function loop() {
+      if (!active || busy || disposed || document.hidden) return;
+      if (!navigator.onLine) {
+        setMessage('Connection lost. Scanning will resume when the device reconnects.');
+        return;
       }
-    } else {
-      // Only do lightweight box detection
-      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
-      resizedDetections = faceapi.resizeResults(detections, displaySize);
-      
-      // Register face detection to reset face timeout and countdown
-      if (detections.length > 0) {
-        cameraManager.registerFaceDetection();
-        setCountdown(5);
-      }
-    }
-
-    // Clear canvas
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Find matches for each detected face and draw
-    resizedDetections.forEach((detection) => {
-      // If we did a heavy pass, we already have the box at detection.detection.box.
-      // If we did a light pass, we have it at detection.box.
-      const box = detection.detection ? detection.detection.box : detection.box;
-      
-      let label = 'unknown';
-      let distance = 1.0;
-      let boxColor = '#ff0000'; // Red - unknown
-      
-      // Simple center-distance heuristic to track faces between heavy passes
-      let minDist = Infinity;
-      let match = null;
-      
-      const center1 = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      
-      lastRecognizedFacesRef.current.forEach(cached => {
-         const center2 = { x: cached.box.x + cached.box.width / 2, y: cached.box.y + cached.box.height / 2 };
-         const dist = Math.sqrt(Math.pow(center1.x - center2.x, 2) + Math.pow(center1.y - center2.y, 2));
-         if (dist < minDist) {
-            minDist = dist;
-            match = cached;
-         }
-      });
-      
-      // If center moved less than 150 pixels, assume it's the same person
-      if (match && minDist < 150) {
-         label = match.label;
-         distance = match.distance;
-         
-         if (distance < HIGH_CONFIDENCE_THRESHOLD) {
-           boxColor = '#00ff00'; // Green - high confidence
-         } else if (distance < LOW_CONFIDENCE_THRESHOLD) {
-           boxColor = '#ffaa00'; // Orange - low confidence
-         }
-      }
-
-      // Draw detection box
-      const drawBox = new faceapi.draw.DrawBox(box, {
-        label: label !== 'unknown' ? `${label} (${Math.round(distance * 100) / 100})` : 'unknown',
-        boxColor: boxColor,
-        lineWidth: 2
-      });
-      drawBox.draw(canvas);
-
-      // Handle based on confidence level
-      if (distance < HIGH_CONFIDENCE_THRESHOLD) {
-        // High confidence - start dwell tracking
-        startDwellTracking(label);
-
-        // Check if minimum dwell time has been reached
-        if (dwellStartTime && (Date.now() - dwellStartTime >= MIN_DWELL_TIME)) {
-          // Dwell time reached - log attendance
-          onFaceDetected({
-            userId: label,
-            confidence: distance,
-            name: label,
-            timestamp: Date.now()
-          });
-          resetDwellTracking();
-        }
-      } else if (distance < LOW_CONFIDENCE_THRESHOLD) {
-        // Low confidence - reset dwell tracking and show warning
-        resetDwellTracking();
-        showWarning(
-          `Low confidence match for ${label}. Please reposition or improve lighting.`,
-          'low-confidence'
-        );
-      } else {
-        // Unknown face - reset dwell tracking and show warning
-        resetDwellTracking();
-        showWarning(
-          'Unknown face detected. Please register to use attendance system.',
-          'unknown'
-        );
-      }
-    });
-
-    // If no faces detected, reset dwell tracking
-    if (resizedDetections.length === 0 && isDwelling) {
-      resetDwellTracking();
-    }
-  }, [faceMatcher, isModelsLoaded, onFaceDetected, showWarning, startDwellTracking, resetDwellTracking, dwellStartTime, isDwelling]);
-
-  /**
-   * Start detection loop
-   */
-  useEffect(() => {
-    let isSubscribed = true;
-
-    const runDetectionLoop = async () => {
-      if (!isSubscribed || !isStreamActive || !isModelsLoaded) return;
-      
+      if (confirmationTimer) { schedule(500); return; }
+      const scanGeneration = generation;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth) { schedule(500); return; }
       try {
-        await detectFaces();
-      } catch (error) {
-        console.error('Error during face detection:', error);
-      }
-      
-      // Schedule next frame only after current one finishes
-      if (isSubscribed) {
-        detectionIntervalRef.current = setTimeout(runDetectionLoop, 150);
-      }
-    };
-
-    if (isStreamActive && isModelsLoaded) {
-      runDetectionLoop();
-    }
-
-    return () => {
-      isSubscribed = false;
-      if (detectionIntervalRef.current) {
-        clearTimeout(detectionIntervalRef.current);
-      }
-      if (dwellIntervalRef.current) {
-        clearInterval(dwellIntervalRef.current);
-      }
-    };
-  }, [isStreamActive, isModelsLoaded, detectFaces]);
-
-  /**
-   * Countdown timer for face timeout
-   */
-  useEffect(() => {
-    if (countdown > 0 && cameraStatus === 'active') {
-      countdownIntervalRef.current = setInterval(() => {
-        setCountdown(prev => prev - 1);
-      }, 1000);
-    } else {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    }
-
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    };
-  }, [countdown, cameraStatus]);
-
-  /**
-   * Start video on mount
-   */
-  useEffect(() => {
-    startVideo();
-
-    // Listen for camera manager events
-    const handleCameraIdleStopped = () => {
-      setCameraStatus('motion_detection');
-      setIsMotionDetectionActive(true);
-      setIsStreamActive(false);
-      setCountdown(0);
-      resetDwellTracking();
-    };
-
-    const handleMotionDetected = () => {
-      console.log('Motion detected, auto-reactivating camera');
-      setIsMotionDetectionActive(false);
-      setCameraStatus('initializing');
-      startVideo();
-    };
-
-    cameraManager.on('cameraIdleStopped', handleCameraIdleStopped);
-    cameraManager.on('motionDetected', handleMotionDetected);
-
-    return () => {
-      stopVideo();
-      if (detectionIntervalRef.current) {
-        clearTimeout(detectionIntervalRef.current);
-      }
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-      cameraManager.off('cameraIdleStopped', handleCameraIdleStopped);
-      cameraManager.off('motionDetected', handleMotionDetected);
-    };
-  }, [startVideo, stopVideo, resetDwellTracking]);
-
-  /**
-   * Get status indicator color and text
-   */
-  const getStatusInfo = () => {
-    switch (cameraStatus) {
-      case 'initializing':
-        return { color: 'bg-yellow-500 animate-pulse', text: 'Initializing...' };
-      case 'active':
-        return {
-          color: 'bg-green-500 animate-pulse',
-          text: countdown > 0 ? `Camera Active (${countdown}s)` : 'Camera Active'
-        };
-      case 'motion_detection':
-        return { color: 'bg-blue-500 animate-pulse', text: 'Motion Detection Active' };
-      case 'idle':
-        return { color: 'bg-gray-500', text: 'Camera Idle' };
-      case 'error':
-        return { color: 'bg-red-500', text: 'Camera Error' };
-      default:
-        return { color: 'bg-gray-500', text: 'Unknown' };
-    }
-  };
-
-  const statusInfo = getStatusInfo();
-
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const containerRef = useRef(null);
-
-  const handleToggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(console.error);
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(console.error);
-    }
-  };
-
-  const handleFlipCamera = async () => {
-    try {
-      setCameraStatus('initializing');
-      const stream = await cameraManager.toggleFacingMode();
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsStreamActive(true);
-        setCameraStatus('active');
-      }
-    } catch (err) {
-      console.error('Error flipping camera:', err);
-    }
-  };
-
-  return (
-    <div ref={containerRef} className={`relative w-full max-w-2xl mx-auto ${isFullscreen ? 'fixed inset-0 z-50 max-w-none bg-black flex items-center justify-center p-0' : ''}`}>
-      <div className={`relative bg-gray-900 rounded-2xl overflow-hidden shadow-2xl w-full ${isFullscreen ? 'h-full flex items-center justify-center' : ''}`}>
-        {/* Error state */}
-        {cameraStatus === 'error' && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10 p-4">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <p className="text-red-400 font-medium mb-2">Camera Error</p>
-            <p className="text-gray-400 text-sm text-center max-w-xs mb-4">{cameraError}</p>
-            <button
-              onClick={startVideo}
-              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all duration-200 min-h-[44px]">
-              Retry Camera
-            </button>
-          </div>
-        )}
-
-        {/* Idle state */}
-        {cameraStatus === 'idle' && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10 p-4">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <p className="text-gray-400 font-medium mb-2">Camera Idle</p>
-            <p className="text-gray-500 text-sm text-center max-w-xs mb-4">
-              Camera was stopped to save battery. Tap to reactivate.
-            </p>
-            <button
-              onClick={startVideo}
-              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all duration-200 min-h-[44px]">
-              Reactivate Camera
-            </button>
-          </div>
-        )}
-
-        {/* Initializing state */}
-        {cameraStatus === 'initializing' && (
-          <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-10">
-            <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
-            <p className="text-gray-400 font-medium">Initializing camera...</p>
-          </div>
-        )}
-
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          className={`w-full ${isFullscreen ? 'h-full object-cover' : 'h-auto'}`}
-          onLoadedMetadata={() => {
-            if (videoRef.current) {
-              videoRef.current.play();
+        const motion = hasMotion(video);
+        const now = Date.now();
+        const periodicDelay = blocked.size || recentFace ? 3000 : 5000;
+        if (now - lastSent < 1500 || (!motion && now - lastSent < periodicDelay)) {
+          schedule(700);
+          return;
+        }
+        busy = true;
+        lastSent = now;
+        const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+        setMessage('Checking face...');
+        const coords = await currentLocation();
+        if (!active || disposed || scanGeneration !== generation) return;
+        request = new AbortController();
+        const response = await fetch('/api/face/kiosk-attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64, skipUserIds: [...blocked], ...coords }),
+          signal: request.signal
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!active || disposed || scanGeneration !== generation) return;
+        if ((response.ok && result.matched === false) || response.status === 422) {
+          serverFailures = 0;
+          if (result.reason === 'no_face') {
+            recentFace = false;
+            emptyFrames += 1;
+            if (emptyFrames >= 2) {
+              blocked.clear();
+              saveBlocked();
             }
-          }} />
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full pointer-events-none" />
+          } else {
+            recentFace = true;
+            emptyFrames = 0;
+          }
+          setMessage(result.error || 'Move closer and improve lighting.');
+          schedule(1200);
+        } else if (response.ok) {
+          serverFailures = 0;
+          recentFace = true;
+          emptyFrames = 0;
+          if (result.skipped) {
+            blocked.add(result.userId);
+            saveBlocked();
+            setMessage('Attendance already recorded. The next person may step forward.');
+          } else {
+            blocked.add(result.userId);
+            saveBlocked();
+            onFaceDetected({ userId: result.userId, name: result.name, status: result.status, timestamp: Date.now() });
+            clearTimeout(confirmationTimer);
+            setConfirmation({ name: result.name, status: result.status });
+            confirmationTimer = setTimeout(() => {
+              confirmationTimer = null;
+              setConfirmation(null);
+            }, 2000);
+            setMessage(`${result.name}: ${result.status} recorded. The next person may step forward.`);
+          }
+          schedule(2500);
+        } else {
+          if (response.status === 403) {
+            stop();
+            setStatus('error');
+            setMessage(result.error || 'Scanner access is not configured for this website.');
+          } else if (response.status === 503) {
+            setMessage('Scanner is busy. Retrying shortly...');
+            schedule(2000);
+          } else {
+            serverFailures += 1;
+            const delay = Math.min(30000, 5000 * 2 ** Math.min(serverFailures - 1, 3));
+            setMessage(`${result.error || 'Attendance server error.'} Retrying in ${delay / 1000}s.`);
+            schedule(delay);
+          }
+        }
+      } catch (error) {
+        if (active && !disposed && scanGeneration === generation) {
+          if (!navigator.onLine) {
+            setMessage('Connection lost. Scanning will resume when the device reconnects.');
+            return;
+          }
+          if (error.name === 'AbortError' && request?.signal.aborted) {
+            schedule(500);
+            return;
+          }
+          serverFailures += 1;
+          const delay = Math.min(30000, 5000 * 2 ** Math.min(serverFailures - 1, 3));
+          setMessage(`${error instanceof TypeError && request ? 'Connection interrupted.' : error.message || 'Scanner unavailable.'} Retrying in ${delay / 1000}s.`);
+          schedule(delay);
+        }
+      } finally {
+        if (scanGeneration === generation) {
+          request = null;
+          busy = false;
+        }
+      }
+    }
 
-        {/* Status indicator */}
-        <div className="absolute top-4 left-4 flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${statusInfo.color}`} />
-          <span className="text-white text-xs sm:text-sm font-medium bg-black/60 backdrop-blur-md px-3 py-1 rounded-full shadow-lg">
-            {statusInfo.text}
-          </span>
-        </div>
+    const start = async () => {
+      if (active || starting || disposed || document.hidden) return;
+      starting = true;
+      setStatus('starting');
+      setMessage('Starting camera...');
+      try {
+        const settingsResponse = await fetch('/api/attendance/settings');
+        if (!settingsResponse.ok) throw new Error('Attendance server unavailable.');
+        const settings = await settingsResponse.json();
+        if (disposed || document.hidden) return;
+        geofencingEnabled = !!settings.geofencing_enabled;
+        const camera = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+        });
+        if (disposed || document.hidden) { camera.getTracks().forEach(track => track.stop()); return; }
+        stream = camera;
+        const video = videoRef.current;
+        if (!video) { stop(); return; }
+        video.srcObject = camera;
+        await video.play();
+        if (disposed || document.hidden) { stop(); return; }
+        const trackSettings = camera.getVideoTracks()[0]?.getSettings?.() || {};
+        setResolution(`${trackSettings.width || video.videoWidth} × ${trackSettings.height || video.videoHeight}`);
+        setStatus('active');
+        setMessage('Position one face in the frame. Scanning is automatic.');
+        active = true;
+        schedule(0);
+      } catch (error) {
+        stop();
+        if (!disposed) {
+          setStatus('error');
+          setMessage(error.name === 'NotAllowedError'
+            ? 'Allow camera access in browser settings, then reload this page.'
+            : error.message || 'Camera unavailable. Reload this page to retry.');
+        }
+      } finally {
+        starting = false;
+      }
+    };
 
-        {/* Confidence warning */}
-        {warningMessage && (
-          <div className="absolute top-4 right-4 max-w-xs z-20">
-            <div className={`px-4 py-3 rounded-xl shadow-xl backdrop-blur-md ${warningType === 'low-confidence'
-                ? 'bg-amber-500/90 text-white'
-                : 'bg-rose-500/90 text-white'
-              }`}>
-              <div className="flex items-start gap-2">
-                {warningType === 'low-confidence' ? (
-                  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                <p className="text-xs sm:text-sm font-medium">{warningMessage}</p>
-              </div>
-            </div>
-          </div>
-        )}
+    const visibilityChanged = () => {
+      if (document.hidden) { stop(); if (!disposed) setStatus('paused'); }
+      else start();
+    };
+    const connectionLost = () => {
+      clearTimeout(timer);
+      request?.abort();
+      if (!disposed) setMessage('Connection lost. Scanning will resume when the device reconnects.');
+    };
+    const connectionRestored = () => {
+      if (disposed || document.hidden) return;
+      serverFailures = 0;
+      lastSent = 0;
+      setMessage('Connection restored. Resuming scanner...');
+      if (active) schedule(500);
+      else if (!starting) start();
+    };
+    document.addEventListener('visibilitychange', visibilityChanged);
+    window.addEventListener('offline', connectionLost);
+    window.addEventListener('online', connectionRestored);
+    start();
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', visibilityChanged);
+      window.removeEventListener('offline', connectionLost);
+      window.removeEventListener('online', connectionRestored);
+      stop();
+    };
+  }, [onFaceDetected]);
 
-        {/* Dwell time countdown */}
-        {isDwelling && dwellCountdown > 0 && (
-          <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-20 w-11/12 max-w-xs">
-            <div className="bg-slate-900/90 backdrop-blur-md px-6 py-4 rounded-2xl shadow-2xl border border-slate-700/50">
-              <div className="flex flex-col items-center gap-2">
-                <div className="text-white text-xs sm:text-sm font-medium">Hold position for attendance</div>
-                <div className="flex items-center gap-3">
-                  <div className={`text-3xl font-bold ${dwellCountdown > 2 ? 'text-red-400' :
-                      dwellCountdown > 1 ? 'text-yellow-400' : 'text-green-400'
-                    }`}>
-                    {dwellCountdown}
-                  </div>
-                  <div className="w-24 h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-1000 ${dwellCountdown > 2 ? 'bg-red-400' :
-                          dwellCountdown > 1 ? 'bg-yellow-400' : 'bg-green-400'
-                        }`}
-                      style={{ width: `${((MIN_DWELL_TIME / 1000) - dwellCountdown) / (MIN_DWELL_TIME / 1000) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Touch-Friendly Action Toolbar overlay */}
-        {cameraStatus === 'active' && (
-          <div className="absolute bottom-4 right-4 flex items-center gap-2 z-20">
-            {/* Flip Camera Button for Mobile/Tablets */}
-            <button
-              type="button"
-              onClick={handleFlipCamera}
-              className="p-3 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-white rounded-xl shadow-lg backdrop-blur-md transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-700/50"
-              title="Switch Camera (Front/Back)">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-
-            {/* Fullscreen Toggle Button */}
-            <button
-              type="button"
-              onClick={handleToggleFullscreen}
-              className="p-3 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-white rounded-xl shadow-lg backdrop-blur-md transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-700/50"
-              title={isFullscreen ? 'Exit Fullscreen Kiosk' : 'Fullscreen Kiosk Mode'}>
-              {isFullscreen ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
-              )}
-            </button>
-
-            {/* Stop Camera Button */}
-            <button
-              type="button"
-              onClick={stopVideo}
-              className="px-4 py-2.5 bg-rose-600/80 hover:bg-rose-700 active:scale-95 text-white text-xs font-semibold rounded-xl shadow-lg backdrop-blur-md transition-all duration-200 min-h-[44px] border border-rose-500/50">
-              Stop Camera
-            </button>
-          </div>
-        )}
-      </div>
-
-
-      {/* Instructions */}
-      <div className="mt-4 text-center text-gray-600 text-sm">
-        <p>Position your face clearly in front of the camera for attendance scanning</p>
-        <p className="text-gray-400 text-xs mt-1">
-          Camera will automatically stop after 5 seconds of inactivity to save battery
-        </p>
-      </div>
+  return <div className="w-full max-w-2xl mx-auto">
+    <div className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden">
+      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+      {status === 'active' && <div className="absolute inset-0 border-[3px] border-emerald-400/40 rounded-full m-[15%] pointer-events-none" />}
+      {status !== 'active' && <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 text-white px-6 text-center">{message}</div>}
     </div>
-  );
-};
-
-export default CameraFeed;
+    <div aria-live="polite" className="mt-3 text-sm text-slate-700">
+      <p>{message}</p>
+      {status === 'active' && <p className="text-xs text-slate-500">Camera: {resolution}</p>}
+    </div>
+    {status === 'active' && confirmation && <div role="alert" className="fixed inset-0 z-[100] flex overflow-y-auto bg-slate-950/95 px-4 py-4 text-center text-white sm:px-8 sm:py-8">
+      <div className="m-auto w-full max-w-2xl rounded-3xl border-4 border-emerald-300 bg-emerald-700 px-5 py-6 shadow-2xl sm:px-10 sm:py-14">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-white text-emerald-700 sm:mb-6 sm:h-28 sm:w-28" aria-hidden="true">
+          <svg className="h-14 w-14 sm:h-20 sm:w-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
+        </div>
+        <p className="text-3xl font-black uppercase tracking-wide sm:text-5xl">Attendance recorded</p>
+        <p className="mt-4 break-words text-4xl font-bold sm:mt-6 sm:text-6xl">{confirmation.name}</p>
+        <p className="mt-4 text-3xl font-bold sm:mt-5 sm:text-4xl">{confirmation.status === 'IN' ? 'Checked in' : 'Checked out'}</p>
+        <p className="mt-5 text-lg font-medium text-emerald-50 sm:mt-8 sm:text-2xl">The next person may step forward.</p>
+      </div>
+    </div>}
+  </div>;
+}

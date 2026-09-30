@@ -19,6 +19,7 @@ const verifyChatAuth = (req, res, next) => {
       if (token && token !== 'null' && token !== 'undefined') {
         try {
           const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+          if (decoded.type !== 'admin') return res.status(403).json({ error: 'Admin access required.' });
           req.user = {
             id: decoded.id || 1,
             username: decoded.username || 'Admin',
@@ -27,22 +28,14 @@ const verifyChatAuth = (req, res, next) => {
           };
           return next();
         } catch (jwtErr) {
-          console.warn('[Chat Auth] JWT Verification warning:', jwtErr.message);
+          return res.status(401).json({ error: 'Invalid or expired token.' });
         }
       }
     }
 
-    // Fallback: Default to Active Superadmin / System Admin if no token in session
-    req.user = {
-      id: 1,
-      username: 'Admin',
-      type: 'admin',
-      position: 'Superadmin'
-    };
-    next();
+    return res.status(401).json({ error: 'Sign in required.' });
   } catch (error) {
-    req.user = { id: 1, username: 'Admin', type: 'admin', position: 'Superadmin' };
-    next();
+    return res.status(500).json({ error: 'Authentication failed.' });
   }
 };
 

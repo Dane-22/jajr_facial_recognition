@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/.env
+**/.env.*
+frontend/dist
+backend/backups
+backend/uploads
+mobile
+react-native-movie-app
+tests
+docs

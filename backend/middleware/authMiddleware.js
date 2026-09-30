@@ -11,6 +11,7 @@ const verifyAdminToken = (req, res, next) => {
     const token = authHeader.substring(7);
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+    if (decoded.type !== 'admin') return res.status(403).json({ error: 'Admin access required.' });
     
     const adminObj = {
       id: decoded.id,

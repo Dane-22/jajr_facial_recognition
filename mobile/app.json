@@ -25,6 +25,14 @@
     },
     "plugins": [
       [
+        "expo-camera",
+        { "cameraPermission": "Allow JAJR Attendance to scan your face", "recordAudioAndroid": false }
+      ],
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "Allow JAJR Attendance to verify your location when geofencing is enabled" }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",

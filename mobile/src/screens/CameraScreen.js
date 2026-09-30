@@ -1,39 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { logOfflineAttendance } from '../database/queries';
-import { identifyEmployeeOffline } from '../services/faceRecognitionService';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as Location from 'expo-location';
+import { scanAndLogAttendance } from '../services/faceRecognitionService';
+import apiClient from '../api/client';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, withSequence } from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
-
-const { width, height } = Dimensions.get('window');
 
 export default function CameraScreen({ navigation }) {
     const [permission, requestPermission] = useCameraPermissions();
     const cameraRef = useRef(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isCameraReady, setIsCameraReady] = useState(false);
     const isFocused = useIsFocused();
     
-    // Scanner Line Animation
-    const scanLinePosition = useSharedValue(0);
+    useEffect(() => {
+        if (!isFocused) setIsCameraReady(false);
+    }, [isFocused]);
 
     useEffect(() => {
-        scanLinePosition.value = withRepeat(
-            withSequence(
-                withTiming(200, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-                withTiming(0, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-            ),
-            -1, // infinite
-            true // reverse
-        );
-    }, []);
-
-    const animatedScanLineStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ translateY: scanLinePosition.value }],
-        };
-    });
+        if (!isFocused || isProcessing) return;
+        const timeout = setTimeout(() => navigation.navigate('Dashboard'), 45000);
+        return () => clearTimeout(timeout);
+    }, [isFocused, isProcessing, navigation]);
 
     if (!permission) {
         return <View style={styles.container}><Text>Requesting permissions...</Text></View>;
@@ -53,25 +43,30 @@ export default function CameraScreen({ navigation }) {
     }
 
     const handleCapture = async () => {
-        if (!cameraRef.current) return;
+        if (!cameraRef.current || !isCameraReady || isProcessing) return;
         
         setIsProcessing(true);
         try {
-            const photo = await cameraRef.current.takePictureAsync({ base64: true });
-            
-            // Pass the captured image to the face recognition service
-            const matchedEmployeeId = await identifyEmployeeOffline(photo.base64);
-            
-            if (!matchedEmployeeId) {
-                Alert.alert("Match Failed", "Face not recognized. Please try again.");
-                return;
+            const settings = await apiClient.get('/attendance/settings');
+            let location = {};
+            if (settings.data.geofencing_enabled) {
+                const permission = await Location.requestForegroundPermissionsAsync();
+                if (!permission.granted) throw new Error('Location permission is required for attendance at this site.');
+                const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+                location = { latitude: position.coords.latitude, longitude: position.coords.longitude };
             }
-            
-            const timestamp = new Date().toISOString();
-            await logOfflineAttendance(matchedEmployeeId, timestamp);
-            
-            Alert.alert("Success", "Attendance logged successfully!");
-            // Remove navigation.goBack() because we are in a tab navigator now
+            const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+            const maxDimension = Math.max(photo.width, photo.height);
+            const context = ImageManipulator.ImageManipulator.manipulate(photo.uri);
+            if (maxDimension > 1280) {
+                const ratio = 1280 / maxDimension;
+                context.resize({ width: Math.round(photo.width * ratio), height: Math.round(photo.height * ratio) });
+            }
+            const image = await context.renderAsync();
+            const jpeg = await image.saveAsync({ compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+            const result = await scanAndLogAttendance(jpeg.base64, location);
+            Alert.alert('Success', `${result.status} attendance recorded.`);
+            navigation.navigate('Dashboard');
         } catch (error) {
             console.error(error);
             Alert.alert("Error", error.message || "Failed to capture attendance.");
@@ -83,7 +78,7 @@ export default function CameraScreen({ navigation }) {
     return (
         <View style={styles.container}>
             {isFocused && (
-                <CameraView style={styles.camera} ref={cameraRef} facing="front">
+                <CameraView style={styles.camera} ref={cameraRef} facing="front" onCameraReady={() => setIsCameraReady(true)}>
                     <View style={styles.overlay}>
                         <Text style={styles.instructionText}>Position your face in the frame</Text>
                         
@@ -93,16 +88,13 @@ export default function CameraScreen({ navigation }) {
                             <View style={styles.cornerBL} />
                             <View style={styles.cornerBR} />
                             
-                            {isProcessing && (
-                                <Animated.View style={[styles.scanLine, animatedScanLineStyle]} />
-                            )}
                         </View>
 
                         <View style={styles.bottomControls}>
                             <TouchableOpacity 
                                 style={[styles.captureButton, isProcessing && styles.captureButtonDisabled]} 
                                 onPress={handleCapture}
-                                disabled={isProcessing}
+                                disabled={isProcessing || !isCameraReady}
                             >
                                 {isProcessing ? (
                                     <Text style={styles.captureButtonText}>Scanning...</Text>
@@ -160,16 +152,6 @@ const styles = StyleSheet.create({
     cornerBL: { position: 'absolute', bottom: 0, left: 0, width: 40, height: 40, borderColor: '#10B981', borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 20 },
     cornerBR: { position: 'absolute', bottom: 0, right: 0, width: 40, height: 40, borderColor: '#10B981', borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 20 },
     
-    scanLine: {
-        width: '100%',
-        height: 2,
-        backgroundColor: '#10B981',
-        shadowColor: '#10B981',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 1,
-        shadowRadius: 10,
-        elevation: 10,
-    },
     bottomControls: {
         width: '100%',
         alignItems: 'center',

@@ -1,22 +1,24 @@
-import axios from 'axios';
+import { create } from 'axios';
 
-// Replace with your actual backend local IP address or production URL
-// For local Android emulator, usually 10.0.2.2. For physical device, use your machine's local IP on the network.
-const API_BASE_URL = 'http://192.168.0.102:5000/api'; 
+// Set EXPO_PUBLIC_API_URL to the local server when developing on a device.
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://jajr.xandree.com/api';
+let authToken = null;
 
-const apiClient = axios.create({
+export const setAuthToken = (token) => {
+    authToken = token;
+};
+
+const apiClient = create({
     baseURL: API_BASE_URL,
-    timeout: 10000,
+    timeout: 30000,
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
-// Add interceptors if you need to attach auth tokens in the future
 apiClient.interceptors.request.use(
-    async (config) => {
-        // e.g., const token = await AsyncStorage.getItem('token');
-        // if (token) config.headers.Authorization = `Bearer ${token}`;
+    (config) => {
+        if (authToken) config.headers.Authorization = `Bearer ${authToken}`;
         return config;
     },
     (error) => {

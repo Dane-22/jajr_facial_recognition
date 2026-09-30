@@ -201,15 +201,15 @@ const EmployeeList = () => {
       faceapi.matchDimensions(canvas, displaySize);
 
       const detections = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
-        .withFaceDescriptor();
+        .withFaceDescriptors();
 
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (detections) {
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+      if (detections.length === 1 && detections[0].detection.box.width >= 80) {
+        const resizedDetections = faceapi.resizeResults(detections[0], displaySize);
         
         const drawBox = new faceapi.draw.DrawBox(resizedDetections.detection.box, {
           label: 'Face Detected',
@@ -218,9 +218,9 @@ const EmployeeList = () => {
         });
         drawBox.draw(canvas);
 
-        setFaceDescriptor(Array.from(detections.descriptor));
+        setFaceDescriptor(previous => [...(previous || []), Array.from(detections[0].descriptor)].slice(0, 3));
       } else {
-        setError('No face detected. Please position your face clearly in the frame.');
+        setError(detections.length > 1 ? 'Only one person may be in the frame.' : 'Move closer and improve lighting, then retry.');
       }
     } catch (error) {
       console.error('Error capturing face:', error);
@@ -267,8 +267,8 @@ const EmployeeList = () => {
     setError('');
 
     // For new employees, require face descriptor
-    if (!editingEmployee && !faceDescriptor) {
-      setError('Please capture a face descriptor first for new employees');
+    if (!editingEmployee && (!faceDescriptor || faceDescriptor.length < 3)) {
+      setError('Please capture three face samples before creating an employee.');
       return;
     }
 
@@ -762,9 +762,9 @@ const EmployeeList = () => {
                       <button
                         type="button"
                         onClick={captureFaceDescriptor}
-                        disabled={isProcessing}
+                        disabled={isProcessing || faceDescriptor?.length >= 3}
                         className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-md px-6 py-3 bg-white hover:bg-slate-100 disabled:bg-slate-300 disabled:cursor-not-allowed text-black font-medium rounded-lg transition-colors duration-200">
-                        {isProcessing ? 'Processing...' : 'Capture Face'}
+                        {isProcessing ? 'Processing...' : `Capture Face (${faceDescriptor?.length || 0}/3)`}
                       </button>
                     </div>
                   )}
@@ -775,13 +775,13 @@ const EmployeeList = () => {
                         <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <p className="text-green-400 text-sm font-medium">Face descriptor captured successfully</p>
+                        <p className="text-green-400 text-sm font-medium">{faceDescriptor.length}/3 samples captured. Look straight, then slightly left and right.</p>
                       </div>
                     </div>
                   )}
 
-                  {!editingEmployee && !faceDescriptor && (
-                    <p className="text-slate-400 text-xs">* Face registration is required for new employees</p>
+                  {!editingEmployee && (!faceDescriptor || faceDescriptor.length < 3) && (
+                    <p className="text-slate-400 text-xs">* Three clear face samples are required for new employees</p>
                   )}
                 </div>
 
@@ -802,7 +802,7 @@ const EmployeeList = () => {
                 <button
                   type="submit"
                   data-testid="save-employee-button"
-                  disabled={!editingEmployee && !faceDescriptor}
+                  disabled={!editingEmployee && (!faceDescriptor || faceDescriptor.length < 3)}
                   className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors duration-200">
                   {editingEmployee ? 'Update' : 'Create Employee'}
                 </button>

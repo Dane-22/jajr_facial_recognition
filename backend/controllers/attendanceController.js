@@ -95,12 +95,14 @@ const logAttendance = async (req, res) => {
     const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
     
     if (settingsMap.geofencing_enabled === 'true') {
-      if (!latitude || !longitude) {
+      const lat = Number(latitude);
+      const lon = Number(longitude);
+      if (latitude == null || longitude == null || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
         return res.status(400).json({ error: 'Location (latitude and longitude) is required when geofencing is enabled.' });
       }
       const distance = getDistanceFromLatLonInM(
-        parseFloat(latitude),
-        parseFloat(longitude),
+        lat,
+        lon,
         parseFloat(settingsMap.office_latitude),
         parseFloat(settingsMap.office_longitude)
       );
@@ -149,6 +151,7 @@ const logAttendance = async (req, res) => {
       message: 'Attendance logged successfully',
       logId: result.insertId,
       userId: actualUserId,
+      name: userName,
       status
     });
   } catch (error) {

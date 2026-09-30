@@ -1,210 +1,198 @@
-# JAJR Facial Recognition - System Deployment & Docker Operations Manual
+# JAJR deployment manual
 
----
+Current target: Ubuntu 24.04, `/root/jajr_facial_recognition`, `https://jajr.xandree.com` (`72.62.254.60`). Run `powershell` blocks locally on Windows and `bash` blocks inside the SSH session. This manual describes the repository's Docker Compose deployment. `SYSTEM_DEPLOYMENT_MANUAL.md` describes an unrelated project; `docs/DEPLOYMENT_PLAN.md` describes an older PM2 setup.
 
-## 1. System Architecture & Topology
-
-**JAJR Facial Recognition** is structured as a multi-tier microservice architecture orchestrated via Docker Compose:
+## Architecture
 
 ```text
-                                  [ Client Browser ]
-                                          |
-                                          |  HTTP:80 / HTTPS:443
-                                          v
-+---------------------------------------------------------------------------------------+
-|  HOST SERVER (Nginx Reverse Proxy)                                                    |
-|                                                                                       |
-|  - Routes attendance.yourdomain.com -> localhost:7001                                 |
-|  - Manages Let's Encrypt SSL Certificates for secure camera access                    |
-+-----------------------------------+---------------------------------------------------+
-                                    |
-                                    v
-+---------------------------------------------------------------------------------------+
-|  FRONTEND CONTAINER (Nginx Alpine Web Server)           [Port: 7001]                  |
-|                                                                                       |
-|  - Serves compiled React SPA bundle                                                   |
-|  - Handles SPA client-side routing fallback                                           |
-|  - Requests camera permissions (requires HTTPS)                                       |
-+-----------------------------------+---------------------------------------------------+
-                                    |
-          Internal Docker Network   | (jajr_network)
-                                    v
-+---------------------------------------------------------------------------------------+
-|  BACKEND CONTAINER (Node.js + Express)                  [Port: 7000]                  |
-|                                                                                       |
-|  - REST API Engine & Face Recognition Processing                                      |
-|  - Connects to isolated MySQL and Redis containers                                    |
-+-------------------+-----------------------------------------------+-------------------+
-                    |                                               |
-                    v                                               v
-+---------------------------------------+       +---------------------------------------+
-|  MYSQL CONTAINER (MySQL 8.0)          |       |  REDIS CONTAINER (Redis Alpine)       |
-|                                       |       |                                       |
-|  - Persistent Volume: db_data         |       |  - High-throughput In-Memory Cache    |
-|  - Internal Hostname: jajr_db         |       |  - Internal Hostname: jajr_redis      |
-|  - Database: facial_attendance_db     |       |                                       |
-+---------------------------------------+       +---------------------------------------+
+Browser → HTTPS host Nginx (:443) → frontend container (:7001 on host)
+                                     ├─ React/Vite static files
+                                     ├─ /api/ → backend container (:7000)
+                                     └─ /socket.io/ → backend container (:7000)
+Backend → MySQL 8 (named db_data volume) and Redis (no persistent volume)
 ```
 
----
+The host Nginx proxies all site paths to `127.0.0.1:7001`. The frontend container routes API and Socket.IO requests. Express also serves `/uploads/`, but the present frontend Nginx config has no `/uploads/` proxy. Compose publishes backend port 7000 and frontend port 7001 on **all** host interfaces; MySQL and Redis have no host port mapping.
 
-## 2. Server Prerequisites & Specifications
+## Prerequisites and configuration
 
-### Recommended Hardware
-| Resource | Minimum | Recommended (Production) |
-| :--- | :--- | :--- |
-| **CPU** | 1 vCPU (2.0 GHz+) | 2+ vCPUs |
-| **RAM** | 2 GB | 4 GB+ |
-| **Storage** | 20 GB SSD | 30+ GB SSD |
+Install Git, Docker Engine with the Compose plugin, host Nginx, and Certbot with its Nginx plugin on Ubuntu 24.04. Confirm `docker compose version`, `nginx -t`, the domain's DNS A record, and access to ports 80/443. Keep SSH allowed in the server and provider firewalls. Restrict external access to ports 7000/7001. Binding them to `127.0.0.1` in Compose is preferable after verifying no kiosk or mobile client connects directly to 7000.
 
-### Operating System Support
-- **Ubuntu 24.04 LTS / 22.04 LTS** *(Highly Recommended)*
-- Debian 11/12
+The current `docker-compose.yml` has **different fallback passwords** for MySQL's `MYSQL_PASSWORD` and the backend's `DB_PASSWORD`. Create `/root/jajr_facial_recognition/.env` with explicit values so both services receive the same app password:
 
----
-
-## 3. Server Preparation (Ubuntu)
-
-Log in to your server via SSH:
-```bash
-ssh root@[IP_ADDRESS]
+```dotenv
+DB_ROOT_PASSWORD=<unique strong root password>
+DB_PASSWORD=<unique strong app password>
+JWT_SECRET=<long random secret>
+KIOSK_API_KEY=<long random secret>
+FRONTEND_URL=https://jajr.xandree.com
 ```
 
-### Step 3.1: Update System Packages
-```bash
-sudo apt update && sudo apt upgrade -y
+Generate each secret separately, for example with `openssl rand -hex 32`. Protect `.env` with `chmod 600 .env`; never commit or paste its contents. The root `.env` is read by Compose for interpolation. To pass `FRONTEND_URL` into the backend container, add this entry to the backend service's `environment` list in `docker-compose.yml`:
+
+```yaml
+- FRONTEND_URL=${FRONTEND_URL:?Set FRONTEND_URL in .env}
 ```
 
-### Step 3.2: Install Docker Engine
-```bash
-# Install Docker and Compose Plugin
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+The backend uses that value for HTTP and Socket.IO CORS; otherwise it defaults to `http://localhost:3000`. `backend/.env.example` is a local-development template with different database settings. Do not copy it into production. Because `backend/Dockerfile` runs `COPY . .` and there is no `backend/.dockerignore`, a local `backend/.env` can be baked into an image. Before building, add `backend/.dockerignore` containing at least `.env`, `backups/`, `uploads/`, and `node_modules/`; supply runtime secrets through Compose. Changing `.env` later does not rotate a MySQL user's password in an existing `db_data` volume.
 
-# Enable and start Docker service
-sudo systemctl enable docker
-sudo systemctl start docker
+For chat attachments, add persistent storage for `/app/uploads` in the backend service and proxy `/uploads/` from `frontend/nginx.conf` to `http://backend:7000` without stripping the path. For a fresh install, these entries illustrate the required changes:
+
+```yaml
+# Under services.backend:
+volumes:
+  - uploads_data:/app/uploads
+# Under the top-level volumes section:
+uploads_data:
 ```
 
----
-
-## 4. Application Deployment Workflow
-
-### Step 4.1: Clone the Repository
-```bash
-# Clone the repository to your home directory (or /var/www/)
-git clone https://github.com/Dane-22/jajr_facial_recognition.git
-cd jajr_facial_recognition
-```
-
-### Step 4.2: Configure Environment Variables
-```bash
-cp backend/.env.example backend/.env
-nano backend/.env
-```
-Ensure you set your database passwords and API keys correctly.
-
-### Step 4.3: Build & Start Containers
-Run the cluster in detached mode. This will safely build the React frontend and Node backend.
-```bash
-docker compose up -d --build
-```
-Verify they are running: `docker compose ps`
-
----
-
-## 5. Database Initialization
-
-When the MySQL container (`jajr_db`) starts for the first time, it is empty. Import your `.sql` backup file.
-
-Run this command to temporarily disable foreign key checks and pipe the SQL file directly into the running database container (replace the password with your actual root password):
-
-```bash
-(echo "SET FOREIGN_KEY_CHECKS=0;" ; cat backend/facial_attendance_db.sql ; echo "SET FOREIGN_KEY_CHECKS=1;") | sudo docker exec -i jajr_db mysql -u root -pJaJr12390786@ facial_attendance_db
-```
-
----
-
-## 6. Nginx Configuration (Host Reverse Proxy)
-
-Since the Dockerized frontend is running on **Port 7001**, configure your host server's Nginx to reverse proxy your public domain to this port.
-
-**1. Create the Nginx configuration file:**
-```bash
-sudo tee /etc/nginx/sites-available/jajr_attendance > /dev/null << 'EOF'
-server {
-    listen 80;
-    server_name attendance.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:7001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
+```nginx
+# Inside the frontend server block:
+location /uploads/ {
+    proxy_pass http://backend:7000;
+    proxy_set_header Host $host;
 }
-EOF
 ```
 
-**2. Enable the site and restart Nginx:**
-```bash
-sudo ln -s /etc/nginx/sites-available/jajr_attendance /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+For an existing installation, copy files already in the backend container's `/app/uploads` to safe storage **before** adding an empty volume, which would hide them. Back up the mounted upload data separately. Without these changes, uploaded files may be unreachable through the public site and may disappear on container recreation. Backend-generated files under `/app/backups` are also ephemeral unless mounted; use the host-side backup command below.
+
+## Fresh installation
+
+In Windows PowerShell:
+
+```powershell
+ssh root@72.62.254.60
 ```
 
----
+On the Ubuntu host:
 
-## 7. SSL/HTTPS Setup (Crucial)
-
-> [!WARNING]
-> **CRITICAL REQUIREMENT:** The HTML5 Geolocation API and WebRTC Camera APIs (used by Face-API.js) **will not work** in modern browsers unless the site is served over a secure HTTPS connection.
-
-Secure your domain using a free Let's Encrypt SSL certificate:
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d attendance.yourdomain.com
-```
-Follow the prompts to automatically redirect all HTTP traffic to HTTPS.
-
----
-
-## 8. Continuous Deployment Workflow (Pushing Updates)
-
-When you make changes to your code locally and want to update the production server, follow this standard Git deployment workflow:
-
-**1. On your local machine (Push to GitHub):**
-```bash
-git add .
-git commit -m "Describe your updates here"
-git push origin main
+cd /root
+git clone https://github.com/Dane-22/jajr_facial_recognition.git
+cd /root/jajr_facial_recognition
+git status --short
+docker compose version
 ```
 
-**2. On your production server (Pull & Rebuild):**
+Create `.env` and make the configuration corrections above. Then build and start:
+
 ```bash
-# SSH into the server
-ssh root@[IP_ADDRESS]
-
-# Navigate to the project directory
-cd ~/jajr_facial_recognition
-
-# Pull the latest changes from GitHub
-git pull origin main
-
-# Rebuild and restart the containers in the background
+docker compose config --quiet
 docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 db backend frontend
 ```
-> [!TIP]
-> Docker is smart enough to only rebuild the parts of the application that have changed, and it will do so without interrupting or clearing your database.
 
----
+Do not share `docker compose config` without `--quiet`: its output includes secrets. Compose does not automatically import the schema, and it has no health checks. On a **new, empty** database only, wait for MySQL and import the bundled dump:
 
-## 9. Helpful Docker Commands
+```bash
+docker compose exec db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqladmin ping -u "$MYSQL_USER" --silent'
+docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u "$MYSQL_USER" "$MYSQL_DATABASE"' < backend/facial_attendance_db.sql
+docker compose exec db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u "$MYSQL_USER" "$MYSQL_DATABASE" -e "SHOW TABLES"'
+```
 
-| Command | Description |
-| :--- | :--- |
-| `docker compose logs -f` | View logs for all containers in real-time |
-| `docker compose logs -f backend` | View logs for the backend container only |
-| `docker compose down` | Stop and remove the application containers |
-| `docker compose up -d --build` | Rebuild and start the application |
+The dump contains `DROP TABLE` statements and seeded account/attendance data. **Never import it into a populated production database.** Review its data before using it anywhere. `backend/initDatabase.js` refers to a missing `database.sql`, and `backend/seedAdmin.js` resets the admin password to a known value; do not use either for production setup. Set or rotate administrator credentials through the supported admin flow.
+
+### The newer local SQL dump is not a routine seed
+
+The local file `facial_attendance_db (1).sql` was generated on September 29, 2026. It is a full phpMyAdmin export, not an incremental patch. It drops and recreates 12 tables, including `admins`, `users`, `attendance_logs`, and `audit_logs`. It contains 462 attendance rows and 618 audit rows, compared with 166 and 308 in the older bundled dump. It does not set `FOREIGN_KEY_CHECKS=0`, so an import over an existing schema may also fail partway through on foreign keys. The application logs show production activity after the export time, so replacing production with this file could lose newer records. **Do not pipe this file into the live database.** Decide whether the intended operation is a reviewed merge or a full replacement, take and verify a production backup, and compare current production rows before preparing an import plan. The file currently exists on the local Windows checkout; it has not been imported by this manual.
+
+### Host Nginx and HTTPS
+
+The observed `/etc/nginx/sites-enabled/jajr` already has Certbot certificate and HTTP redirect blocks. Preserve them. Its application location is:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:7001;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+For a new host, configure the domain on port 80, then issue HTTPS with `certbot --nginx -d jajr.xandree.com`. Browser camera access requires HTTPS on a public domain. After a host config edit:
+
+```bash
+nginx -t
+systemctl reload nginx
+```
+
+## Verification
+
+```bash
+docker compose ps
+curl -sS -o /dev/null -w 'Homepage: %{http_code}\n' https://jajr.xandree.com/
+curl -sS -o /dev/null -w 'Login validation: %{http_code}\n' \
+  -X POST https://jajr.xandree.com/api/admin/login \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+Expected: homepage `200` and empty login POST `400`. `GET /api/admin/login` returning `404` is expected because the route accepts POST only. These checks establish routing and validation, **not** authentication or database health. Use an authorized test account to verify login and a database-backed page. In a browser, verify camera permission, Socket.IO, and a known chat attachment URL after the upload fix. Inspect `docker compose logs --tail=100 backend frontend` and browser network errors.
+
+### Check current errors without changing data
+
+On the Ubuntu server, these commands inspect running services, recent logs, host Nginx errors, and database row counts:
+
+```bash
+cd /root/jajr_facial_recognition
+docker compose ps
+docker compose logs --since=30m --tail=100 db backend frontend redis
+tail -n 100 /var/log/nginx/error.log
+docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u "$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT COUNT(*) AS attendance_rows FROM attendance_logs; SELECT COUNT(*) AS audit_rows FROM audit_logs;"'
+```
+
+Check for containers that are restarting or exited, SQL connection failures, `500`/`502` responses, and browser Console/Network errors while reproducing the problem. `docker compose ps` reports running state, not application health. A manual SQL import error normally appears in the terminal running `mysql` as `ERROR ... at line ...`; it may not appear in `docker compose logs db`. Capture that first error and the line number. Do not rerun a destructive full dump merely to reproduce it.
+
+## Routine update and backup
+
+The local checkout currently uses branch `master`. Verify the server branch before pulling. From Windows PowerShell, test and commit only intended changes:
+
+```powershell
+git status --short
+git branch --show-current
+git add <intended-files>
+git commit -m "Describe the change"
+git push origin master
+```
+
+On the server, inspect its worktree first. The supplied session shows an untracked nested `jajr_facial_recognition/` directory; investigate its contents before cleanup or pull. Back up the database and mounted uploads before an update that might affect them:
+
+```bash
+cd /root/jajr_facial_recognition
+git status --short
+git branch --show-current
+docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -u "$MYSQL_USER" "$MYSQL_DATABASE"' > /root/jajr-backup-$(date +%Y%m%d-%H%M%S).sql
+git pull --ff-only origin master
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 backend frontend
+```
+
+Keep backups outside the checkout and copy them to secure off-server storage. `docker compose up -d --build` may recreate containers and cause a short interruption. Do not run `docker compose down -v`: that removes the MySQL volume. Do not re-import the initial SQL dump on updates. A code rollback does not undo database changes; restore a pre-update dump only after preserving any newer data.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| `502` | `docker compose ps`; host Nginx upstream `127.0.0.1:7001`; both Nginx logs. |
+| API returns SPA HTML | Check `/api/` in `frontend/nginx.conf`, then rebuild frontend. |
+| Empty login POST returns `400` | Expected input validation; test with authorized credentials. |
+| Database login fails | Check `db` logs and the password used when `db_data` was first initialized. |
+| Chat attachment returns `404` or HTML | Add `/uploads/` proxy and persistent `/app/uploads` storage. |
+| Socket.IO fails | Check `/socket.io/` forwarding and backend `FRONTEND_URL`. |
+
+## Review of the supplied SSH session
+
+- The first SSH password was rejected and the next succeeded; this does not indicate an application fault.
+- Host Nginx passed `nginx -t`, reloaded, and returned `200` for the HTTPS homepage.
+- `GET /api/admin/login` returned `404` and an empty `POST` returned `400`, matching the Express route and validation code.
+- Compose showed four running containers. Only the frontend had just started; backend, database, and Redis showed about five weeks of uptime. That does not prove the latest backend code or schema is running.
+- The top-level Compose `version: '3.8'` warning is informational; current Compose ignores it. Remove the field in a separate reviewed change.
+- The untracked nested directory needs inspection. The transcript does not show what it contains.
+- Ubuntu reported 65 available updates, additional ESM security updates, one failed unattended update, and a required reboot. Review `/var/log/unattended-upgrades/unattended-upgrades.log`, apply planned updates, and reboot in a maintenance window after confirming backups and service restart behavior. The single zombie process is a separate host-health item to identify if it persists.
+- Later application logs showed two rejected login attempts (`401`) followed by a successful login (`200`). Dashboard, employee, attendance, audit, chat-room, and report requests returned `200` or cache-validating `304`. WebSocket requests returned `101`, and the backend logged authenticated Socket.IO admin-room joins. These are evidence that login, several database-backed reads, and WebSocket routing worked in that observed window.
+- The logs did not establish camera operation, chat-attachment delivery or persistence, or that every production table matches the local SQL dump. No production seed/import was performed as part of this review.

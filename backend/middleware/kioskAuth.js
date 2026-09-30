@@ -11,7 +11,7 @@ const verifyKioskOrAdminToken = (req, res, next) => {
   const expectedApiKey = process.env.KIOSK_API_KEY || 'kiosk_dev_secret_key_2026';
 
   // Check 1: Valid Kiosk API Key
-  if (kioskApiKey && kioskApiKey === expectedApiKey) {
+  if (process.env.NODE_ENV !== 'production' && kioskApiKey && kioskApiKey === expectedApiKey) {
     req.userType = 'kiosk';
     return next();
   }
@@ -22,6 +22,7 @@ const verifyKioskOrAdminToken = (req, res, next) => {
     const token = authHeader.split(' ')[1];
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+      if (decoded.type !== 'admin') return res.status(403).json({ error: 'Admin access required.' });
       req.user = decoded;
       req.userType = 'admin';
       return next();

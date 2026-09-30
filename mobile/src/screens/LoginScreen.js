@@ -2,20 +2,29 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import apiClient, { setAuthToken } from '../api/client';
 
 const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [isSigningIn, setIsSigningIn] = useState(false);
 
-    const handleLogin = () => {
-        // Placeholder for real authentication logic
-        if (email && password) {
-            // Usually, here we'd store the token in AsyncStorage
+    const handleLogin = async () => {
+        if (!username || !password || isSigningIn) return;
+        setIsSigningIn(true);
+        try {
+            const response = await apiClient.post('/admin/login', { username, password });
+            const session = await apiClient.post('/face/session', {}, {
+                headers: { Authorization: `Bearer ${response.data.token}` }
+            });
+            setAuthToken(session.data.token);
             navigation.replace('MainTabs');
-        } else {
-            Alert.alert('Error', 'Please enter email and password');
+        } catch (error) {
+            Alert.alert('Sign in failed', error.response?.data?.error || 'Check your connection and credentials.');
+        } finally {
+            setIsSigningIn(false);
         }
     };
 
@@ -34,11 +43,10 @@ export default function LoginScreen({ navigation }) {
                 <View style={styles.inputContainer}>
                     <TextInput
                         style={styles.input}
-                        placeholder="Admin Email"
+                        placeholder="Admin Username"
                         placeholderTextColor="#666"
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
+                        value={username}
+                        onChangeText={setUsername}
                         autoCapitalize="none"
                     />
                 </View>
@@ -54,8 +62,8 @@ export default function LoginScreen({ navigation }) {
                     />
                 </View>
 
-                <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                    <Text style={styles.buttonText}>Login</Text>
+                <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isSigningIn || !username || !password}>
+                    <Text style={styles.buttonText}>{isSigningIn ? 'Signing in...' : 'Login'}</Text>
                 </TouchableOpacity>
             </BlurView>
         </View>

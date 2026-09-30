@@ -1,10 +1,9 @@
 import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { initDB } from './src/database';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -54,11 +53,6 @@ function MainTabs() {
 }
 
 export default function App() {
-    useEffect(() => {
-        // Initialize SQLite database on app startup
-        initDB().catch(console.error);
-    }, []);
-
     return (
         <SafeAreaProvider>
             <NavigationContainer>

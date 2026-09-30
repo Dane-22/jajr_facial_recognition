@@ -3,11 +3,14 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files and install dependencies
-COPY package*.json ./
-RUN npm install --omit=dev
+COPY backend/package*.json ./
+RUN npm ci --omit=dev
 
 # Copy source code
-COPY . .
+COPY backend/ .
+COPY frontend/public/models/ /app/models/
+
+ENV FACE_MODEL_DIR=/app/models
 
 # Expose backend port
 EXPOSE 7000

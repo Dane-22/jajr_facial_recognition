@@ -20,6 +20,8 @@ const auditRoutes = require('./routes/auditRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const faceRoutes = require('./routes/faceRoutes');
+const { loadModels } = require('./services/faceRecognition');
 
 const app = express();
 const server = http.createServer(app);
@@ -53,6 +55,10 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log(`[Socket.IO] Client connected: ${socket.id}`);
+  const isAdmin = token => {
+    try { return jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key').type === 'admin'; }
+    catch { return false; }
+  };
 
   // Admin clients join dedicated room after token verification
   socket.on('join-admin', (data) => {
@@ -62,7 +68,8 @@ io.on('connection', (socket) => {
       return;
     }
     try {
-      jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+      if (decoded.type !== 'admin') return;
       socket.join('admin-room');
       console.log(`[Socket.IO] ${socket.id} authenticated and joined admin-room`);
     } catch (err) {
@@ -72,7 +79,8 @@ io.on('connection', (socket) => {
 
   // Chat Room Joins
   socket.on('chat:join_room', (data) => {
-    const { roomId } = data;
+    if (!isAdmin(data?.token || socket.handshake.auth?.token)) return;
+    const { roomId } = data || {};
     if (roomId) {
       socket.join(`room:${roomId}`);
       console.log(`[Socket.IO] ${socket.id} joined chat room:${roomId}`);
@@ -81,14 +89,16 @@ io.on('connection', (socket) => {
 
   // Typing status signal
   socket.on('chat:typing', (data) => {
-    const { roomId, userName } = data;
+    if (!isAdmin(data?.token || socket.handshake.auth?.token)) return;
+    const { roomId, userName } = data || {};
     if (roomId) {
       socket.to(`room:${roomId}`).emit('chat:user_typing', { roomId, userName, isTyping: true });
     }
   });
 
   socket.on('chat:stop_typing', (data) => {
-    const { roomId, userName } = data;
+    if (!isAdmin(data?.token || socket.handshake.auth?.token)) return;
+    const { roomId, userName } = data || {};
     if (roomId) {
       socket.to(`room:${roomId}`).emit('chat:user_typing', { roomId, userName, isTyping: false });
     }
@@ -105,6 +115,7 @@ io.on('connection', (socket) => {
       let decodedUser;
       try {
         decodedUser = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+        if (decodedUser.type !== 'admin') throw new Error('Admin access required');
       } catch (err) {
         if (typeof callback === 'function') callback({ success: false, error: 'Invalid token' });
         return;
@@ -140,7 +151,7 @@ io.on('connection', (socket) => {
       io.to(`room:${roomId}`).emit('chat:new_message', newMessage);
 
       // Broadcast to all sockets for unread badges update
-      io.emit('chat:room_updated', { roomId, last_message: content, last_message_time: newMessage.created_at });
+      io.to('admin-room').emit('chat:room_updated', { roomId, last_message: content, last_message_time: newMessage.created_at });
 
       if (typeof callback === 'function') callback({ success: true, message: newMessage });
     } catch (err) {
@@ -157,6 +168,7 @@ io.on('connection', (socket) => {
       let decodedUser;
       try {
         decodedUser = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
+        if (decodedUser.type !== 'admin') return;
       } catch (err) {
         return;
       }
@@ -197,9 +209,11 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/face', faceRoutes);
 
 server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  loadModels().then(() => console.log('[FaceRecognition] Models ready')).catch(error => console.error('[FaceRecognition] Model preload failed:', error));
   // Attempt Redis connection — falls back to node-cache if unavailable
   await connectRedis();
 });

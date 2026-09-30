@@ -12,10 +12,10 @@ const { cacheMiddleware, clearCache } = require('../middleware/cache');
 const { verifyAdminToken } = require('../middleware/authMiddleware');
 
 // Get all employees (public read – kiosk and admin both need this)
-router.get('/', getAllEmployees);
+router.get('/', verifyAdminToken, getAllEmployees);
 
 // Get single employee by ID
-router.get('/:id', getEmployeeById);
+router.get('/:id', verifyAdminToken, getEmployeeById);
 
 // Create new employee — admin only (clears cache)
 router.post('/', verifyAdminToken, validateEmployee, (req, res, next) => {
