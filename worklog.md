@@ -112,5 +112,5 @@ This section supersedes the earlier statement that no application fixes had been
 
 ### Branch change
 
-- Promoted the existing `main` branch to the current development branch, retaining all commits from `master`. Updated deployment commands to use `main` and documented the one-time switch for the production checkout still on `master`.
+- Promoted the existing `main` branch to the current development branch and GitHub default, retaining all commits from `master`. The local branch tracks `origin/main`. Updated deployment commands to use `main` and documented the one-time switch for the production checkout still on `master`.
 - The legacy remote `master` branch is retained while production is being switched. Branch changes do not resolve the production MySQL credential failure described above.
