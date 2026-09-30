@@ -109,3 +109,8 @@ This section supersedes the earlier statement that no application fixes had been
 - Set Express to trust private Docker proxy addresses for client IP handling, removed obsolete Compose `version`, and added server-side logging when public attendance settings cannot be read. These changes address separate warnings; they do not repair the production MySQL account.
 - Added a credential verification and recovery procedure to `SERVER_DEPLOYMENT.md` that preserves `db_data`. No remote password, account, or data was changed from this workspace.
 - Backend `npm test` passed (7 tests) and `node --check server.js` passed. Local `docker compose config --quiet` could not run because Docker is unavailable in this Windows workspace. Production credential reconciliation and a live endpoint check remain pending on the server.
+
+### Branch change
+
+- Promoted the existing `main` branch to the current development branch, retaining all commits from `master`. Updated deployment commands to use `main` and documented the one-time switch for the production checkout still on `master`.
+- The legacy remote `master` branch is retained while production is being switched. Branch changes do not resolve the production MySQL credential failure described above.

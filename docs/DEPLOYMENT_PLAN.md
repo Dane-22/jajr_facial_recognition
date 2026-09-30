@@ -316,7 +316,7 @@ When pushing new code updates to GitHub, log into SSH and run this quick script 
 
 ```bash
 cd /var/www/face_recog
-git pull origin master
+git pull origin main
 
 # Update Backend
 cd /var/www/face_recog/backend

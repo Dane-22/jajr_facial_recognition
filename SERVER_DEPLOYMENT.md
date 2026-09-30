@@ -149,24 +149,32 @@ Check for containers that are restarting or exited, SQL connection failures, `50
 
 ## Routine update and backup
 
-The local checkout currently uses branch `master`. Verify the server branch before pulling. From Windows PowerShell, test and commit only intended changes:
+The development branch is `main`. Verify the server branch before pulling. From Windows PowerShell, test and commit only intended changes:
 
 ```powershell
 git status --short
 git branch --show-current
 git add <intended-files>
 git commit -m "Describe the change"
-git push origin master
+git push origin main
 ```
 
-On the server, inspect its worktree first. The supplied session shows an untracked nested `jajr_facial_recognition/` directory; investigate its contents before cleanup or pull. Back up the database and mounted uploads before an update that might affect them:
+For a server checkout still on `master`, switch it once after ensuring `git status --short` has no tracked changes to preserve:
+
+```bash
+cd /root/jajr_facial_recognition
+git fetch origin main
+git switch -c main --track origin/main
+```
+
+If `main` already exists locally, use `git switch main` instead of creating it. The supplied session shows an untracked nested `jajr_facial_recognition/` directory; investigate its contents before cleanup or pull. Back up the database and mounted uploads before an update that might affect them:
 
 ```bash
 cd /root/jajr_facial_recognition
 git status --short
 git branch --show-current
 docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -u "$MYSQL_USER" "$MYSQL_DATABASE"' > /root/jajr-backup-$(date +%Y%m%d-%H%M%S).sql
-git pull --ff-only origin master
+git pull --ff-only origin main
 docker compose up -d --build
 docker compose ps
 docker compose logs --tail=100 backend frontend

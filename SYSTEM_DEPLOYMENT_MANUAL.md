@@ -1,6 +1,6 @@
 # JAJR facial recognition attendance: deployment quick reference
 
-This repository is `Dane-22/jajr_facial_recognition` on branch `master`. The earlier version of this file was copied from ENG PLANNER and contained commands for a different repository, database, and application. Use [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md) for the complete JAJR setup, backup, migration, and troubleshooting procedure.
+This repository is `Dane-22/jajr_facial_recognition` on branch `main`. The earlier version of this file was copied from ENG PLANNER and contained commands for a different repository, database, and application. Use [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md) for the complete JAJR setup, backup, migration, and troubleshooting procedure.
 
 ## Find the JAJR checkout
 
@@ -53,7 +53,7 @@ From the active JAJR checkout, check for local server changes and back up data b
 git status --short
 git branch --show-current
 docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -u "$MYSQL_USER" "$MYSQL_DATABASE"' > /root/jajr-backup-$(date +%Y%m%d-%H%M%S).sql
-git pull --ff-only origin master
+git pull --ff-only origin main
 docker compose up -d --build
 docker compose ps
 docker compose logs --tail=100 backend frontend
