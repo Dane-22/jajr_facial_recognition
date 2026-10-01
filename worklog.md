@@ -114,3 +114,27 @@ This section supersedes the earlier statement that no application fixes had been
 
 - Promoted the existing `main` branch to the current development branch and GitHub default, retaining all commits from `master`. The local branch tracks `origin/main`. Updated deployment commands to use `main` and documented the one-time switch for the production checkout still on `master`.
 - The legacy remote `master` branch is retained while production is being switched. Branch changes do not resolve the production MySQL credential failure described above.
+
+## Daily report - 2026-09-30 (clock out, Asia/Manila)
+
+### Completed
+
+- Expanded `SYSTEM_DEPLOYMENT_MANUAL.md` into a local push-to-production guide covering the one-time `master` to `main` switch, database backup, separate backend/frontend image builds, container startup, endpoint checks, and error logs. Added credential diagnostics for the attendance-settings failure.
+- Confirmed GitHub `main` contains commit `d4d9f2d`. The operator fetched it on the VPS and switched the outer `/root/jajr_facial_recognition` checkout to `main`; `git log -1` showed `d4d9f2d` and `git status` showed `main...origin/main`. The older `master` branch retained its two local commits. The nested `jajr_facial_recognition/` directory remained untracked and was not removed.
+- Reviewed operator screenshots and VPS logs. Both application images built and all four containers initially ran. The backend repeatedly reported MySQL `ER_ACCESS_DENIED_ERROR` for `jajr_admin`, explaining `/api/attendance/settings` HTTP 500. A later HTTP 502 occurred while the recreated backend was starting; frontend Nginx logged an upstream connection refusal at that moment.
+- Verified that the configured application and root MySQL passwords were rejected. An interactive test of the operator's proposed application password was also rejected. The VPS had no `.env` file; recreating the backend therefore did not repair the existing MySQL credentials.
+- Identified the production MySQL data volume as `jajr_facial_recognition_db_data` at `/var/lib/docker/volumes/jajr_facial_recognition_db_data/_data`. The operator measured it at 203 MB and reported 70 GB free on `/`. Provided a stopped-volume backup procedure before credential recovery.
+
+### State at clock out
+
+- **Production recovery is incomplete.** In the last operator output, `jajr_db` had stopped cleanly and `jajr_backend` was stopped; `jajr_frontend` and `jajr_redis` remained running. No later restart or successful endpoint check was reported.
+- The cold backup commands (`tar`, `gzip -t`, `test -s`) were provided but **no backup result was reported**. Do not assume a usable backup exists.
+- No MySQL password reset, `.env` creation, SQL import, database-volume deletion, or production data change was reported. No physical low-spec device benchmark was completed.
+- Direct SSH from this workspace was denied, so server observations and actions above are based on operator-supplied command output. The latest documentation commit also deleted the older `SERVER_DEPLOYMENT.md` and included four screenshots; the current manual is standalone.
+
+### Next actions
+
+1. If leaving the recovery for later, restore the stopped services with `cd /root/jajr_facial_recognition && docker compose up -d db backend`. This restores service availability only; the settings API will still fail until MySQL authentication is repaired.
+2. During a maintenance window, stop backend and MySQL, make and verify a cold backup of the 203 MB data volume, then reset the existing MySQL accounts without removing the volume.
+3. Create a private, mode-600 root `.env` with distinct database root and application credentials plus JWT, kiosk, and frontend settings. Match the MySQL application account to `DB_PASSWORD`; recreate backend and verify both a direct database login and `GET /api/attendance/settings` returning HTTP 200.
+4. Inspect the untracked nested checkout before cleanup, confirm actual kiosk attendance on production, and measure camera resolution and scan latency on the affected low-spec mobile devices.
