@@ -177,4 +177,12 @@ The production authentication incident described in the September 30 entry was r
 - Committed the admin dashboard fixes, tests, review, and implementation plan as `f0d757a` (`Improve admin dashboard reporting and settings`) and pushed it to GitHub `main`. Screenshot additions and deletions were excluded from the commit.
 - The Windows workstation could not establish SSH to `72.62.254.60:22` (`Connection timed out`). No fresh database backup, server fetch, image build, container restart, or production verification was performed. Production remains on its prior deployed build until the VPS checkout is updated.
 
+### October 1 production deployment
+
+- SSH access was restored with a temporary public key. Verified Compose configuration and MySQL application access, then created a compressed logical backup at `/root/jajr-backup-20261001-133543.sql.gz`. The file passed `gzip -t` and ended with MySQL's dump completion marker. An earlier dump attempt failed because the application account lacks `PROCESS`; the verified backup used `--no-tablespaces`.
+- Fast-forwarded the production checkout to `30c98fc`, built backend and frontend Docker images, and recreated both application containers. MySQL and Redis containers remained running.
+- Public smoke checks: homepage and `/api/attendance/settings` returned HTTP 200; unauthenticated `/api/admin/health` returned HTTP 401. The homepage changed from `index-D8nW1z94.js` to `index-p1_XwCc8.js`. Backend logs showed MySQL/Redis startup and face models ready. Two WebSocket 502s occurred while the backend was starting; authenticated sockets connected afterward.
+- In the signed-in Chrome admin dashboard, the 7-day trend showed all seven dates; the daily report showed one day present for the employee with two IN records; Maintenance reported MySQL connected, Redis connected, and Socket.IO running. Chrome initially showed a cached admin bundle; a hard refresh loaded the new UI.
+- No production attendance, employee, admin, or settings records were changed for smoke testing. The open implementation-plan items still require staging and read-only reconciliation.
+
 The user's screenshot additions and earlier screenshot deletions were left untouched.
