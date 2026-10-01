@@ -17,6 +17,8 @@ export default function CameraFeed({ onFaceDetected }) {
   const [message, setMessage] = useState('Starting camera...');
   const [resolution, setResolution] = useState('');
   const [confirmation, setConfirmation] = useState(null);
+  const [scanPhase, setScanPhase] = useState(null);
+  const [scanElapsedMs, setScanElapsedMs] = useState(0);
 
   useEffect(() => {
     let disposed = false;
@@ -25,6 +27,7 @@ export default function CameraFeed({ onFaceDetected }) {
     let busy = false;
     let stream = null;
     let timer = null;
+    let scanTicker = null;
     let confirmationTimer = null;
     let request = null;
     let generation = 0;
@@ -44,12 +47,19 @@ export default function CameraFeed({ onFaceDetected }) {
       try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...blocked])); } catch { /* Storage may be disabled. */ }
     };
 
+    const finishScan = () => {
+      clearInterval(scanTicker);
+      scanTicker = null;
+      if (!disposed) setScanPhase(null);
+    };
+
     const stop = () => {
       generation += 1;
       active = false;
       busy = false;
       clearTimeout(timer);
       clearTimeout(confirmationTimer);
+      finishScan();
       if (!disposed) setConfirmation(null);
       request?.abort();
       stream?.getTracks().forEach(track => track.stop());
@@ -107,15 +117,24 @@ export default function CameraFeed({ onFaceDetected }) {
         }
         busy = true;
         lastSent = now;
+        const scanStartedAt = performance.now();
+        clearInterval(scanTicker);
+        setScanElapsedMs(0);
+        setScanPhase(geofencingEnabled ? 'location' : 'matching');
+        scanTicker = setInterval(() => {
+          if (!disposed) setScanElapsedMs(performance.now() - scanStartedAt);
+        }, 100);
         const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(video.videoWidth * scale);
         canvas.height = Math.round(video.videoHeight * scale);
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-        setMessage('Checking face...');
+        setMessage(geofencingEnabled ? 'Getting location...' : 'Checking face...');
         const coords = await currentLocation();
         if (!active || disposed || scanGeneration !== generation) return;
+        setScanPhase('matching');
+        setMessage('Checking face...');
         request = new AbortController();
         const response = await fetch('/api/face/kiosk-attendance', {
           method: 'POST',
@@ -193,6 +212,7 @@ export default function CameraFeed({ onFaceDetected }) {
         }
       } finally {
         if (scanGeneration === generation) {
+          finishScan();
           request = null;
           busy = false;
         }
@@ -273,6 +293,11 @@ export default function CameraFeed({ onFaceDetected }) {
     <div className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden">
       <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
       {status === 'active' && <div className="absolute inset-0 border-[3px] border-emerald-400/40 rounded-full m-[15%] pointer-events-none" />}
+      {status === 'active' && scanPhase && <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-slate-950/85 px-3 py-2 text-sm font-semibold text-white shadow-lg" aria-live="off">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden="true" />
+        <span>{scanPhase === 'location' ? 'Getting location' : 'Scanning face'}</span>
+        <span className="tabular-nums text-emerald-300">{(scanElapsedMs / 1000).toFixed(1)}s</span>
+      </div>}
       {status !== 'active' && <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 text-white px-6 text-center">{message}</div>}
     </div>
     <div aria-live="polite" className="mt-3 text-sm text-slate-700">

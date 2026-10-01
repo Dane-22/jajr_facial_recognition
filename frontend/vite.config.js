@@ -61,6 +61,11 @@ export default defineConfig({
         target: globalThis.process.env.VITE_API_PROXY_TARGET || 'http://localhost:7000',
         changeOrigin: true,
       },
+      '/socket.io': {
+        target: globalThis.process.env.VITE_API_PROXY_TARGET || 'http://localhost:7000',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   build: {

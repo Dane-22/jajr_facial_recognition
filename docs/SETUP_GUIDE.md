@@ -57,28 +57,25 @@ SHOW TABLES;
 
 ### 2.3 Configure Environment Variables
 
-Create a `.env` file in the `backend` directory:
-
-```bash
-cd backend
-```
-
-Create `.env` file with the following content:
+Copy `backend/.env.example` to `backend/.env` and set the values for your local MySQL installation. The `.env` file is ignored by Git. For the current WAMP setup, MySQL accepts local `root` with an empty password and the database is `facial_attendance_db`:
 
 ```env
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=face_recognition_db
-JWT_SECRET=your_jwt_secret_key_here
-PORT=5000
+DB_PASSWORD=
+DB_NAME=facial_attendance_db
+PORT=7000
+FRONTEND_URL=http://localhost:3000
+JWT_SECRET=<unique local random secret>
+KIOSK_API_KEY=<unique local random key>
+NODE_ENV=development
 ```
 
-**Important:** Replace `your_mysql_password` with your actual MySQL password and `your_jwt_secret_key_here` with a secure random string.
+Use your actual local MySQL password if it differs. Give `JWT_SECRET` and `KIOSK_API_KEY` distinct random values. Redis is optional locally; the backend uses its in-memory cache when Redis is unavailable.
 
 ### 2.4 Seed Admin User
 
-Run the admin seeding script to create the default admin account:
+Use the existing admin account if this database already contains data. Only for a new, disposable development database, the seed script creates or resets the `admin` account to a known default password:
 
 ```bash
 node seedAdmin.js
@@ -100,7 +97,7 @@ npm run dev
 npm start
 ```
 
-The backend server will run on `http://localhost:5000`
+The backend server will run on `http://localhost:7000`.
 
 ## Step 3: Frontend Setup
 
@@ -119,19 +116,17 @@ npm install
 npm run dev
 ```
 
-The frontend will run on `http://localhost:5173` (or another port if 5173 is occupied)
+The frontend will run on `http://localhost:3000` (or another port if 3000 is occupied). Vite proxies `/api` and `/socket.io` to the backend on port 7000.
 
 ## Step 4: Access the Application
 
 ### Main Application
-- Open your browser and navigate to: `http://localhost:5173`
+- Open your browser and navigate to: `http://localhost:3000`
 - This is the face recognition attendance scanning interface
 
 ### Admin Portal
-- Navigate to: `http://localhost:5173/admin/login`
-- Login with default credentials:
-  - Username: `admin`
-  - Password: `password123`
+- Navigate to: `http://localhost:3000/admin/login`
+- Sign in with the existing local admin account. The seed script's default credentials apply only if you ran it against a disposable development database.
 
 ## Step 5: Camera Permissions
 

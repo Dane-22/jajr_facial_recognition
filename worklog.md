@@ -185,4 +185,16 @@ The production authentication incident described in the September 30 entry was r
 - In the signed-in Chrome admin dashboard, the 7-day trend showed all seven dates; the daily report showed one day present for the employee with two IN records; Maintenance reported MySQL connected, Redis connected, and Socket.IO running. Chrome initially showed a cached admin bundle; a hard refresh loaded the new UI.
 - No production attendance, employee, admin, or settings records were changed for smoke testing. The open implementation-plan items still require staging and read-only reconciliation.
 
+### October 1 localhost setup
+
+- Replaced the ignored `backend/.env` with a localhost configuration based on `backend/.env.example`: WAMP MySQL `root` with an empty password, database `facial_attendance_db`, backend port 7000, frontend origin `http://localhost:3000`, development mode, and newly generated local-only JWT and kiosk secrets. Saved the previous local env file under the Windows temporary directory before replacing it. No secret values were committed.
+- Added `KIOSK_API_KEY` to the tracked template and a Vite `/socket.io` WebSocket proxy, then corrected the localhost setup guide's database name and ports. The local MySQL connection succeeded, the frontend and proxied settings API returned HTTP 200, and Socket.IO connected through Vite. Redis was unavailable locally and the backend used its in-memory fallback. Test processes were stopped afterward.
+- The production `.env` was not changed. If `JWT_SECRET` and `KIOSK_API_KEY` are absent there, Compose uses its checked-in fallback values; replacing them on production needs a coordinated secret rotation and backend recreation because existing admin sessions will be invalidated.
+
+### October 1 scanner timing update
+
+- The operator added distinct generated `JWT_SECRET` and `KIOSK_API_KEY` values to the production `.env` and recreated the backend. Their masked verification reported both as loaded; the public attendance settings route returned HTTP 200 and unauthenticated admin health returned HTTP 401. Existing admin sessions require a fresh sign-in.
+- Added a visible elapsed timer to the kiosk camera while a scan is underway. It distinguishes location acquisition from face matching, begins when a frame is captured, and clears after completion, cancellation, or camera shutdown. It measures the wait; it does not alter matching thresholds or geofence rules.
+- Frontend lint and production build passed locally. The frontend timer still requires a production deployment before it appears on the live kiosk.
+
 The user's screenshot additions and earlier screenshot deletions were left untouched.
