@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { manualLog } = require('../middleware/audit');
+const { validateSettings } = require('../utils/settingsValidation');
 
 const adminLogin = async (req, res) => {
   try {
@@ -313,8 +314,24 @@ const getSettings = async (req, res) => {
 
 const updateSettings = async (req, res) => {
   try {
-    await ensureSettingsTable();
     const settings = req.body;
+    const validationError = validateSettings(settings);
+    if (validationError) return res.status(400).json({ error: validationError });
+    await ensureSettingsTable();
+    const [geofenceRows] = await pool.query(
+      "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('geofencing_enabled', 'office_latitude', 'office_longitude', 'geofence_radius_meters')"
+    );
+    const effectiveGeofence = Object.fromEntries(geofenceRows.map(row => [row.setting_key, row.setting_value]));
+    Object.assign(effectiveGeofence, settings);
+    if (String(effectiveGeofence.geofencing_enabled) === 'true') {
+      for (const key of ['office_latitude', 'office_longitude', 'geofence_radius_meters']) {
+        if (effectiveGeofence[key] == null || effectiveGeofence[key] === '') {
+          return res.status(400).json({ error: `${key} is required when geofencing is enabled` });
+        }
+      }
+      const geofenceError = validateSettings(effectiveGeofence);
+      if (geofenceError) return res.status(400).json({ error: geofenceError });
+    }
     const adminId = req.user?.id || 1;
 
     for (const [key, val] of Object.entries(settings)) {
@@ -343,6 +360,33 @@ const updateSettings = async (req, res) => {
     console.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to save settings' });
   }
+};
+
+const getHealth = async (req, res) => {
+  let database = false;
+  try {
+    await pool.query('SELECT 1');
+    database = true;
+  } catch (error) {
+    console.warn('[Health] Database check failed:', error.message);
+  }
+  const { getRedisClient, isRedisReady } = require('../config/redis');
+  let cache = 'local';
+  if (isRedisReady()) {
+    try {
+      await getRedisClient().ping();
+      cache = 'redis';
+    } catch (error) {
+      console.warn('[Health] Redis check failed:', error.message);
+    }
+  }
+  const io = req.app.get('io');
+  res.json({
+    checkedAt: new Date().toISOString(),
+    database,
+    cache,
+    socketServer: Boolean(io?.engine)
+  });
 };
 
 const exportBackup = async (req, res) => {
@@ -388,14 +432,14 @@ const exportBackup = async (req, res) => {
 
 const clearCache = async (req, res) => {
   try {
-    const { getRedisClient } = require('../config/redis');
-    const redis = getRedisClient();
-    if (redis && redis.flushAll) {
-      await redis.flushAll();
-    }
-    res.status(200).json({ message: 'System cache purged successfully' });
+    const { cacheFlush } = require('../middleware/cache');
+    const { isRedisReady } = require('../config/redis');
+    const mode = isRedisReady() ? 'redis-and-local' : 'local-only';
+    await cacheFlush();
+    res.status(200).json({ message: 'Application cache purged successfully', mode });
   } catch (error) {
-    res.status(200).json({ message: 'System cache purged successfully' });
+    console.error('Cache purge failed:', error);
+    res.status(500).json({ error: 'Failed to purge system cache' });
   }
 };
 
@@ -408,6 +452,7 @@ module.exports = {
   changePassword,
   getSettings,
   updateSettings,
+  getHealth,
   exportBackup,
   clearCache
 };

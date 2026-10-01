@@ -13,6 +13,7 @@ const getDailyReport = async (req, res) => {
         users.id,
         users.name,
         users.role,
+        COUNT(DISTINCT CASE WHEN attendance_logs.status = 'IN' THEN DATE(attendance_logs.timestamp) END) as days_present,
         COUNT(CASE WHEN attendance_logs.status = 'IN' THEN 1 END) as check_ins,
         COUNT(CASE WHEN attendance_logs.status = 'OUT' THEN 1 END) as check_outs,
         MIN(CASE WHEN attendance_logs.status = 'IN' THEN attendance_logs.timestamp END) as first_check_in,
@@ -43,7 +44,7 @@ const getWeeklyReport = async (req, res) => {
     const { startDate, endDate } = req.query;
     
     // Default to last 7 days if not provided
-    const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const start = startDate || new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const end = endDate || new Date().toISOString().split('T')[0];
 
     const [report] = await pool.query(
@@ -51,7 +52,7 @@ const getWeeklyReport = async (req, res) => {
         users.id,
         users.name,
         users.role,
-        COUNT(DISTINCT DATE(attendance_logs.timestamp)) as days_present,
+        COUNT(DISTINCT CASE WHEN attendance_logs.status = 'IN' THEN DATE(attendance_logs.timestamp) END) as days_present,
         COUNT(CASE WHEN attendance_logs.status = 'IN' THEN 1 END) as total_check_ins,
         COUNT(CASE WHEN attendance_logs.status = 'OUT' THEN 1 END) as total_check_outs
        FROM users
@@ -80,28 +81,34 @@ const getMonthlyReport = async (req, res) => {
   try {
     const { year, month } = req.query;
     
-    const currentYear = year || new Date().getFullYear();
-    const currentMonth = month || new Date().getMonth() + 1;
+    const currentYear = Number(year || new Date().getFullYear());
+    const currentMonth = Number(month || new Date().getMonth() + 1);
+    if (!Number.isInteger(currentYear) || currentYear < 2000 || currentYear > 2100 ||
+        !Number.isInteger(currentMonth) || currentMonth < 1 || currentMonth > 12) {
+      return res.status(400).json({ error: 'Invalid report year or month' });
+    }
     
     const startDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
-    const endDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-31`;
+    const nextMonthDate = new Date(Date.UTC(currentYear, currentMonth, 1)).toISOString().slice(0, 10);
+    const endDate = new Date(Date.UTC(currentYear, currentMonth, 0)).toISOString().slice(0, 10);
 
     const [report] = await pool.query(
       `SELECT 
         users.id,
         users.name,
         users.role,
-        COUNT(DISTINCT DATE(attendance_logs.timestamp)) as days_present,
+        COUNT(DISTINCT CASE WHEN attendance_logs.status = 'IN' THEN DATE(attendance_logs.timestamp) END) as days_present,
         COUNT(CASE WHEN attendance_logs.status = 'IN' THEN 1 END) as total_check_ins,
         COUNT(CASE WHEN attendance_logs.status = 'OUT' THEN 1 END) as total_check_outs,
         MIN(CASE WHEN attendance_logs.status = 'IN' THEN attendance_logs.timestamp END) as first_check_in_month,
         MAX(CASE WHEN attendance_logs.status = 'OUT' THEN attendance_logs.timestamp END) as last_check_out_month
        FROM users
        LEFT JOIN attendance_logs ON users.id = attendance_logs.user_id 
-         AND DATE(attendance_logs.timestamp) BETWEEN ? AND ?
+         AND DATE(attendance_logs.timestamp) >= ?
+         AND DATE(attendance_logs.timestamp) < ?
        GROUP BY users.id, users.name, users.role
        ORDER BY users.name`,
-      [startDate, endDate]
+      [startDate, nextMonthDate]
     );
 
     res.status(200).json({

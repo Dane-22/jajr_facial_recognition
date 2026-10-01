@@ -138,3 +138,38 @@ This section supersedes the earlier statement that no application fixes had been
 2. During a maintenance window, stop backend and MySQL, make and verify a cold backup of the 203 MB data volume, then reset the existing MySQL accounts without removing the volume.
 3. Create a private, mode-600 root `.env` with distinct database root and application credentials plus JWT, kiosk, and frontend settings. Match the MySQL application account to `DB_PASSWORD`; recreate backend and verify both a direct database login and `GET /api/attendance/settings` returning HTTP 200.
 4. Inspect the untracked nested checkout before cleanup, confirm actual kiosk attendance on production, and measure camera resolution and scan latency on the affected low-spec mobile devices.
+
+## Admin dashboard implementation - 2026-10-01 (Asia/Manila)
+
+The production authentication incident described in the September 30 entry was resolved earlier on October 1: a stopped-volume backup preceded MySQL account reconciliation, the private server `.env` was updated, services restarted, and `/api/attendance/settings` returned HTTP 200. The temporary SSH access used for that recovery was removed. No credentials are recorded here.
+
+### Completed locally
+
+- Reviewed all eight signed-in admin sections in connected Chrome. Employee search, Attendance Audit Today, Daily Logs IN filter, Audit Logs pagination, and report tabs responded. The live daily report showed 0 Days Present despite 2 IN events; the monthly report showed 1 day. The 14-day trend omitted inactive dates. No production record or setting was changed.
+- Added `docs/ADMIN_DASHBOARD_REVIEW_2026-10-01.md` and `docs/ADMIN_DASHBOARD_IMPLEMENTATION_PLAN.md` with findings, acceptance criteria, and remaining verification.
+- Corrected daily Days Present, the inclusive seven-day weekly default, and monthly report boundaries including leap February. Changed dashboard trends to include zero-activity dates, and both the breakdown and employee comparison to use each employee's latest status today. A live attendance event now refetches the complete dashboard summary.
+- Made Audit Logs' end date inclusive through an exclusive next-day SQL bound. Replaced a throttle that could drop the last rapid filter change with a latest-request debounce.
+- Prevented employee deletion when attendance history exists, avoiding the schema's `ON DELETE CASCADE` loss of those records. The UI now explains the restriction. Employee archival remains to be designed.
+- Restricted Settings updates to known keys and validated numeric/geofence values. Attendance logging now rejects invalid enabled geofence configuration. Added authenticated `GET /api/admin/health` for measured database, Redis/local-cache, and Socket.IO server status. Replaced static Maintenance claims, removed its misplaced Save Shift Rules button, scoped Redis cache keys/purge to `jajr:cache:*`, and report cache purge errors. Labeled inactive recognition and shift controls as stored preferences.
+- Added CSV escaping and spreadsheet-formula protection to Daily Logs and Audit Logs. Audit Logs now labels its export as current-page only.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Frontend lint | Passed. |
+| Backend tests | Passed: 12 tests, including new dashboard, monthly boundary, and Settings validation checks. Local startup migration still warns because the local database credentials are unavailable. |
+| Frontend tests | Passed: 7 tests, including CSV escaping checks. |
+| Frontend production build | Passed; existing approximately 1.3 MB admin chunk warning remains. |
+| `git diff --check` and backend `node --check` | Passed; Git reported only Windows line-ending conversion notices. |
+| Production deployment | Not performed. The connected Chrome page still runs the older deployed build. |
+
+### Remaining work before release
+
+1. Verify whether stored MySQL attendance and audit timestamps are UTC throughout the existing data. Then apply the documented Asia/Manila business-day boundaries consistently across APIs, filters, charts, and exports; test events around midnight.
+2. Build a non-destructive employee archive/deactivate flow with schema and scanner changes. The current delete guard protects history but does not provide an archive action.
+3. Move Attendance Audit filtering, totals, pagination, and full export to the server; the deployed and local page still read only the newest 1,000 rows. Decide whether Audit Logs needs full filtered export or an explicit current-page contract.
+4. Test backup download/restore, cache outage behavior, role restrictions, settings effects, reports, and exports with staging data. Reconcile production counts using read-only SQL after the timestamp convention is established.
+5. Prepare a database backup and reviewed rollout. Rebuild and deploy backend/frontend, then verify the new health endpoint, reports, filters, console, and asset hashes. No Git commit, push, or production deployment was made in this update.
+
+The user's screenshot additions and earlier screenshot deletions were left untouched.

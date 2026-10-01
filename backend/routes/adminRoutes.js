@@ -9,6 +9,7 @@ const {
   changePassword, 
   getSettings, 
   updateSettings,
+  getHealth,
   exportBackup,
   clearCache 
 } = require('../controllers/adminController');
@@ -24,6 +25,7 @@ router.delete('/:id', verifyAdminToken, deleteAdmin);
 router.post('/change-password', verifyAdminToken, changePassword);
 router.get('/settings', verifyAdminToken, getSettings);
 router.post('/settings', verifyAdminToken, updateSettings);
+router.get('/health', verifyAdminToken, getHealth);
 router.get('/backup', verifyAdminToken, exportBackup);
 router.post('/clear-cache', verifyAdminToken, clearCache);
 

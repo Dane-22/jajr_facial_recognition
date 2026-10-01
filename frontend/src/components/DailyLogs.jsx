@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useSocket from '../hooks/useSocket';
 import Table from './UI/Table';
+import { serializeCsv } from '../utils/csv';
 
 const API_URL = '/api';
 
@@ -147,7 +148,7 @@ const DailyLogs = () => {
       log.status,
       formatTimestamp(log.timestamp)
     ]);
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const csvContent = serializeCsv([headers, ...rows]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

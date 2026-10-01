@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Table from './UI/Table';
+import { serializeCsv } from '../utils/csv';
 
 const API_URL = '/api';
 
@@ -24,27 +25,25 @@ const AuditLogs = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
-  const lastFetchRef = useRef(0);
+  const fetchRequestIdRef = useRef(0);
 
   useEffect(() => {
     setPage(1);
   }, [actionFilter, entityTypeFilter, userTypeFilter, startDate, endDate, sortBy, sortOrder, itemsPerPage]);
 
   useEffect(() => {
+    const requestId = ++fetchRequestIdRef.current;
     const token = localStorage.getItem('admin_token');
-    if (token) {
-      fetchAuditLogs(token);
+    if (!token) return;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      fetchAuditLogs(token, requestId);
       fetchAuditStats(token);
-    }
+    }, 250);
+    return () => clearTimeout(timer);
   }, [actionFilter, entityTypeFilter, userTypeFilter, startDate, endDate, sortBy, sortOrder, page, itemsPerPage]);
 
-  const fetchAuditLogs = async (token) => {
-    const now = Date.now();
-    // Rate limit throttle check (min 300ms between calls)
-    if (now - lastFetchRef.current < 300) {
-      return;
-    }
-    lastFetchRef.current = now;
+  const fetchAuditLogs = async (token, requestId) => {
 
     setLoading(true);
     setError('');
@@ -73,6 +72,7 @@ const AuditLogs = () => {
       }
 
       const data = await response.json();
+      if (requestId !== fetchRequestIdRef.current) return;
 
       if (response.ok) {
         const fetchedLogs = data.logs || [];
@@ -85,9 +85,11 @@ const AuditLogs = () => {
         setError(data.error || 'Failed to fetch audit logs');
       }
     } catch (err) {
-      setError('Network error. Please check your connection.');
+      if (requestId === fetchRequestIdRef.current) {
+        setError('Network error. Please check your connection.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestIdRef.current) setLoading(false);
     }
   };
 
@@ -165,7 +167,7 @@ const AuditLogs = () => {
       log.ip_address || '-',
       formatTimestamp(log.timestamp)
     ]);
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const csvContent = serializeCsv([headers, ...rows]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -233,7 +235,7 @@ const AuditLogs = () => {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          {isExporting ? 'Exporting...' : 'Export '}
+          {isExporting ? 'Exporting...' : 'Export current page'}
         </button>
       </div>
 

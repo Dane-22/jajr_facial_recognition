@@ -98,17 +98,26 @@ const logAttendance = async (req, res) => {
     if (settingsMap.geofencing_enabled === 'true') {
       const lat = Number(latitude);
       const lon = Number(longitude);
+      const officeLat = Number(settingsMap.office_latitude);
+      const officeLon = Number(settingsMap.office_longitude);
+      const radius = Number(settingsMap.geofence_radius_meters);
+      if (!settingsMap.office_latitude || !Number.isFinite(officeLat) || Math.abs(officeLat) > 90 ||
+          !settingsMap.office_longitude || !Number.isFinite(officeLon) || Math.abs(officeLon) > 180 ||
+          !Number.isFinite(radius) || radius <= 0 || radius > 10000) {
+        console.error('[Geofencing] Invalid office configuration');
+        return res.status(503).json({ error: 'Attendance location rules are unavailable. Please contact an administrator.' });
+      }
       if (latitude == null || longitude == null || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
         return res.status(400).json({ error: 'Location (latitude and longitude) is required when geofencing is enabled.' });
       }
       const distance = getDistanceFromLatLonInM(
         lat,
         lon,
-        parseFloat(settingsMap.office_latitude),
-        parseFloat(settingsMap.office_longitude)
+        officeLat,
+        officeLon
       );
-      if (distance > parseFloat(settingsMap.geofence_radius_meters)) {
-        return res.status(403).json({ error: `Check-in failed. You are ${Math.round(distance)}m away from the office, which exceeds the allowed ${settingsMap.geofence_radius_meters}m radius.` });
+      if (distance > radius) {
+        return res.status(403).json({ error: `Check-in failed. You are ${Math.round(distance)}m away from the office, which exceeds the allowed ${radius}m radius.` });
       }
     }
 

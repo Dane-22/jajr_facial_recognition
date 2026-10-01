@@ -51,7 +51,7 @@ const getAuditLogs = async (req, res) => {
     }
     
     if (endDate) {
-      whereClause += ' AND audit_logs.timestamp <= ?';
+      whereClause += ' AND audit_logs.timestamp < DATE_ADD(?, INTERVAL 1 DAY)';
       params.push(endDate);
     }
     
@@ -141,7 +141,7 @@ const getAuditStats = async (req, res) => {
     }
     
     if (endDate) {
-      dateFilter += ' AND timestamp <= ?';
+      dateFilter += ' AND timestamp < DATE_ADD(?, INTERVAL 1 DAY)';
       params.push(endDate);
     }
     

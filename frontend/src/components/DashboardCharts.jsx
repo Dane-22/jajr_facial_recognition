@@ -322,13 +322,8 @@ const DashboardCharts = () => {
   const isLoggedIn = !!localStorage.getItem('admin_token');
 
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (token) fetchDashboardData(token, days);
-  }, [days]);
-
-  const fetchDashboardData = async (token, daysParam) => {
-    setLoading(true);
+  const fetchDashboardData = useCallback(async (token, daysParam, showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError('');
     try {
       const res = await fetch(`${API_URL}/dashboard/stats?days=${daysParam}`, {
@@ -346,33 +341,21 @@ const DashboardCharts = () => {
     } catch {
       setError('Network error. Please check your connection.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    if (token) fetchDashboardData(token, days);
+  }, [days, fetchDashboardData]);
 
   // ── Real-time socket updates ───────────────────────────────────────────────
   const handleNewAttendance = useCallback((event) => {
     setLastActivity(event);
-    if (event.status === 'IN') {
-      setLiveCheckIns(c => c + 1);
-    } else {
-      setLiveCheckOuts(c => c + 1);
-    }
-    // Patch today's trends line chart
-    setData(prev => {
-      if (!prev?.trends?.length) return prev;
-      const today = new Date().toISOString().split('T')[0];
-      const updated = prev.trends.map(row => {
-        if (row.date !== today) return row;
-        return {
-          ...row,
-          check_ins: row.check_ins + (event.status === 'IN' ? 1 : 0),
-          check_outs: row.check_outs + (event.status === 'OUT' ? 1 : 0),
-        };
-      });
-      return { ...prev, trends: updated };
-    });
-  }, []);
+    const token = localStorage.getItem('admin_token');
+    if (token) fetchDashboardData(token, days, false);
+  }, [days, fetchDashboardData]);
 
   useSocket('attendance:new', handleNewAttendance, isLoggedIn);
 

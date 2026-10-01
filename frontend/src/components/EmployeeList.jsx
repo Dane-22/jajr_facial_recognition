@@ -238,7 +238,7 @@ const EmployeeList = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+    if (!window.confirm('Delete this employee? This is allowed only when they have no attendance history and cannot be undone.')) {
       return;
     }
 
@@ -351,7 +351,7 @@ const EmployeeList = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 mb-1">Employee Management</h2>
-              <p className="text-slate-500 text-sm">Create, view, update, and delete employees</p>
+              <p className="text-slate-500 text-sm">Create and manage employees. Records with attendance history cannot be deleted.</p>
             </div>
             <div className="flex items-center gap-3">
               <button

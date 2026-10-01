@@ -5,13 +5,15 @@ const { getRedisClient, isRedisReady } = require('../config/redis');
 const localCache = new NodeCache({ stdTTL: 300 });
 
 const DEFAULT_TTL = parseInt(process.env.CACHE_TTL_SECONDS) || 300;
+const CACHE_PREFIX = 'jajr:cache:';
+const redisKey = (key) => `${CACHE_PREFIX}${key}`;
 
 // ─── Core helpers ──────────────────────────────────────────────────────────────
 
 const cacheGet = async (key) => {
   if (isRedisReady()) {
     try {
-      const val = await getRedisClient().get(key);
+      const val = await getRedisClient().get(redisKey(key));
       return val ? JSON.parse(val) : null;
     } catch (err) {
       console.warn('[Cache] Redis get error, falling back to local:', err.message);
@@ -23,7 +25,7 @@ const cacheGet = async (key) => {
 const cacheSet = async (key, data, ttl = DEFAULT_TTL) => {
   if (isRedisReady()) {
     try {
-      await getRedisClient().setEx(key, ttl, JSON.stringify(data));
+      await getRedisClient().setEx(redisKey(key), ttl, JSON.stringify(data));
       return;
     } catch (err) {
       console.warn('[Cache] Redis set error, falling back to local:', err.message);
@@ -35,7 +37,7 @@ const cacheSet = async (key, data, ttl = DEFAULT_TTL) => {
 const cacheDel = async (key) => {
   if (isRedisReady()) {
     try {
-      await getRedisClient().del(key);
+      await getRedisClient().del(redisKey(key));
     } catch (err) {
       console.warn('[Cache] Redis del error:', err.message);
     }
@@ -45,11 +47,13 @@ const cacheDel = async (key) => {
 
 const cacheFlush = async () => {
   if (isRedisReady()) {
-    try {
-      await getRedisClient().flushDb();
-    } catch (err) {
-      console.warn('[Cache] Redis flush error:', err.message);
-    }
+    const redis = getRedisClient();
+    let cursor = '0';
+    do {
+      const batch = await redis.scan(cursor, { MATCH: `${CACHE_PREFIX}*`, COUNT: 100 });
+      cursor = String(batch.cursor);
+      if (batch.keys.length) await redis.del(batch.keys);
+    } while (cursor !== '0');
   }
   localCache.flushAll();
 };

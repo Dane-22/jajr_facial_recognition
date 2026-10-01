@@ -226,7 +226,17 @@ const deleteEmployee = async (req, res) => {
 
     const deletedData = existing[0];
 
-    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    // A plain delete would cascade through attendance_logs and erase history.
+    const [deleteResult] = await pool.query(
+      `DELETE FROM users WHERE id = ?
+       AND NOT EXISTS (SELECT 1 FROM attendance_logs WHERE user_id = ?)`,
+      [id, id]
+    );
+    if (deleteResult.affectedRows === 0) {
+      return res.status(409).json({
+        error: 'Employee has attendance history and cannot be deleted. Keep the record for reports and audits.'
+      });
+    }
 
     // Log delete action
     await manualLog(

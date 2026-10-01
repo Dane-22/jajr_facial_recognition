@@ -7,6 +7,8 @@ const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [health, setHealth] = useState(null);
+  const [healthError, setHealthError] = useState('');
 
   // Settings State
   const [settings, setSettings] = useState({
@@ -39,6 +41,25 @@ const Settings = () => {
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    if (activeSubTab === 'maintenance') fetchHealth();
+  }, [activeSubTab]);
+
+  const fetchHealth = async () => {
+    setHealth(null);
+    setHealthError('');
+    try {
+      const token = localStorage.getItem('admin_token');
+      const response = await fetch(`${API_URL}/admin/health`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Health check failed');
+      setHealth(await response.json());
+    } catch {
+      setHealthError('Service status is unavailable.');
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -193,8 +214,13 @@ const Settings = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
-        setSaveSuccess('System cache purged successfully!');
+        const result = await response.json();
+        setSaveSuccess(result.mode === 'local-only'
+          ? 'Local cache cleared. Redis was unavailable.'
+          : 'Application cache purged successfully!');
         setTimeout(() => setSaveSuccess(''), 3000);
+      } else {
+        setSaveError('Failed to purge cache.');
       }
     } catch (err) {
       setSaveError('Failed to purge cache.');
@@ -288,7 +314,8 @@ const Settings = () => {
           <div className="space-y-6 max-w-3xl">
             <div>
               <h3 className="text-sm font-bold text-slate-900 mb-1">Facial Recognition Parameters</h3>
-              <p className="text-xs text-slate-500">Fine-tune detection threshold and camera stream settings for face matching accuracy.</p>
+              <p className="text-xs text-slate-500">Stored recognition preferences for future scanner integration.</p>
+              <p className="mt-2 text-xs font-semibold text-amber-700">These values do not currently change the live scanner. Its camera, matching, and attendance cooldown use separate runtime settings.</p>
             </div>
 
             {/* Confidence Threshold Slider */}
@@ -309,9 +336,9 @@ const Settings = () => {
                 className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-900"
               />
               <div className="flex justify-between text-[10px] text-slate-400">
-                <span>50% (Strict)</span>
+                <span>50% (Lenient)</span>
                 <span>70% (Balanced)</span>
-                <span>95% (Lenient)</span>
+                <span>95% (Strict)</span>
               </div>
             </div>
 
@@ -327,7 +354,7 @@ const Settings = () => {
                   <option value="720p">720p HD (Recommended)</option>
                   <option value="1080p">1080p Full HD</option>
                 </select>
-                <p className="text-[10px] text-slate-500">Higher resolution increases detection detail but requires more GPU/CPU processing.</p>
+                <p className="text-[10px] text-slate-500">Saved preference; the live camera currently selects its own resolution.</p>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
@@ -341,7 +368,7 @@ const Settings = () => {
                   <option value="5">5 Seconds</option>
                   <option value="10">10 Seconds</option>
                 </select>
-                <p className="text-[10px] text-slate-500">Delay required between consecutive scans of the same employee to prevent duplicate logs.</p>
+                <p className="text-[10px] text-slate-500">Saved preference; the live kiosk currently enforces a separate cooldown.</p>
               </div>
             </div>
 
@@ -359,7 +386,8 @@ const Settings = () => {
           <div className="space-y-6 max-w-3xl">
             <div>
               <h3 className="text-sm font-bold text-slate-900 mb-1">Work Shift & Schedule Rules</h3>
-              <p className="text-xs text-slate-500">Configure standard working hours used by the system and AI assistant to determine punctuality.</p>
+              <p className="text-xs text-slate-500">Store proposed work shift rules.</p>
+              <p className="mt-2 text-xs font-semibold text-amber-700">Late flags and automatic checkout are not active. Saving these values does not change attendance records.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -371,7 +399,7 @@ const Settings = () => {
                   onChange={(e) => handleSettingsChange('work_start_time', e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
                 />
-                <p className="text-[10px] text-slate-500">Check-ins recorded after this time will be flagged as late.</p>
+                <p className="text-[10px] text-slate-500">Proposed start time for future late detection.</p>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
@@ -384,7 +412,7 @@ const Settings = () => {
                   onChange={(e) => handleSettingsChange('late_grace_period', e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
                 />
-                <p className="text-[10px] text-slate-500">Allowable delay before check-in is officially counted as late.</p>
+                <p className="text-[10px] text-slate-500">Proposed grace period for future late detection.</p>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
@@ -401,7 +429,7 @@ const Settings = () => {
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 flex items-center justify-between">
                 <div>
                   <label className="block text-xs font-bold text-slate-800">Midnight Auto Check-Out</label>
-                  <p className="text-[10px] text-slate-500">Automatically check out remaining active logs at 23:59 PM.</p>
+                  <p className="text-[10px] text-slate-500">Proposed option; automatic checkout is not currently active.</p>
                 </div>
                 <input
                   type="checkbox"
@@ -536,46 +564,46 @@ const Settings = () => {
           <div className="space-y-6 max-w-3xl">
             <div>
               <h3 className="text-sm font-bold text-slate-900 mb-1">System Health & Data Maintenance</h3>
-              <p className="text-xs text-slate-500">Monitor live service connections and export database backups.</p>
+              <p className="text-xs text-slate-500">Service status checked when this panel opens. Export database backups below.</p>
+              <button type="button" onClick={fetchHealth} className="mt-2 text-xs font-semibold text-blue-700">Refresh status</button>
+              {health?.checkedAt && <p className="text-[10px] text-slate-500">Checked {new Date(health.checkedAt).toLocaleString()}</p>}
+              {healthError && <p className="text-xs text-rose-600">{healthError}</p>}
             </div>
 
             {/* Health Status Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base">
                   🗄️
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">MySQL Database</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Connected (Port 3306)
+                  <p className={`text-[10px] font-semibold ${health?.database ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {health ? (health.database ? 'Connected' : 'Unavailable') : 'Unknown'}
                   </p>
                 </div>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base">
                   ⚡
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">Redis Cache</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Active / Node Cache
+                  <p className={`text-[10px] font-semibold ${health?.cache === 'redis' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {health ? (health.cache === 'redis' ? 'Redis connected' : 'Local cache fallback') : 'Unknown'}
                   </p>
                 </div>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base">
                   🔌
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">Socket.IO Server</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Real-time Active
+                  <p className={`text-[10px] font-semibold ${health?.socketServer ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {health ? (health.socketServer ? 'Server running' : 'Unavailable') : 'Unknown'}
                   </p>
                 </div>
               </div>
@@ -600,12 +628,6 @@ const Settings = () => {
               </div>
             </div>
 
-            <button
-              onClick={saveSettings}
-              disabled={loading}
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
-              {loading ? 'Saving...' : 'Save Shift Rules'}
-            </button>
           </div>
         )}
 
