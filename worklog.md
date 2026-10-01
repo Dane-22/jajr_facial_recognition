@@ -1,5 +1,20 @@
 # Worklog — 2026-09-29 (Asia/Manila)
 
+## Current status — 2026-10-01 (Asia/Manila)
+
+This worklog is chronological. Earlier statements such as “not deployed” describe the state at that time; the latest status is below.
+
+| Task | Latest status |
+| --- | --- |
+| Server and kiosk investigation | Documented the initial production/API failures, server-side face matching path, geofencing behavior, scan cooldown, and deployment procedure in the dated sections below. No production SQL dump was imported. |
+| Production MySQL recovery | Existing data was backed up before account reconciliation; the database authentication failure was resolved and `/api/attendance/settings` returned HTTP 200. |
+| Admin dashboard review and fixes | Reviewed all eight signed-in sections, wrote the review and implementation plan, fixed the listed reporting, audit, deletion-guard, settings, health, cache, and CSV issues, and deployed the backend/frontend update. A fresh verified logical backup preceded that deployment. |
+| Localhost setup | Replaced ignored `backend/.env` with tested WAMP localhost values and unique local secrets, added Vite Socket.IO proxying, and updated the setup guide. MySQL, local frontend/API, Socket.IO, and lint checks passed. |
+| Production secrets | The operator added generated `JWT_SECRET` and `KIOSK_API_KEY` values and recreated the backend; masked checks showed both loaded. Existing admin sessions need a fresh sign-in. |
+| Scanner timer | Commit `04667bb` was pushed. The public site now serves `index-DyUvixAc.js` and `CameraFeed-DimPR6qf.js`, and the live camera bundle contains the location/face phase labels. An actual on-device timed scan has not yet been observed. |
+
+Open work remains in the admin implementation plan: timestamp/timezone reconciliation, employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
+
 ## Scope and status
 
 Reviewed the JAJR facial-recognition attendance repository, the supplied Ubuntu production-session output, deployment documentation, a newer local SQL dump, and available local checks. **Production is serving requests, but the current code is not ready for a wider production rollout involving attendance and biometric data.** This was a review and documentation session: no application code was fixed, no SQL was imported, and no server deployment was performed from this workspace.
@@ -195,6 +210,6 @@ The production authentication incident described in the September 30 entry was r
 
 - The operator added distinct generated `JWT_SECRET` and `KIOSK_API_KEY` values to the production `.env` and recreated the backend. Their masked verification reported both as loaded; the public attendance settings route returned HTTP 200 and unauthenticated admin health returned HTTP 401. Existing admin sessions require a fresh sign-in.
 - Added a visible elapsed timer to the kiosk camera while a scan is underway. It distinguishes location acquisition from face matching, begins when a frame is captured, and clears after completion, cancellation, or camera shutdown. It measures the wait; it does not alter matching thresholds or geofence rules.
-- Frontend lint and production build passed locally. The frontend timer still requires a production deployment before it appears on the live kiosk.
+- Frontend lint and production build passed locally. Later public asset checks showed the deployed `index-DyUvixAc.js` and `CameraFeed-DimPR6qf.js` files, including both timer phase labels. Real-device scan timing remains unverified.
 
 The user's screenshot additions and earlier screenshot deletions were left untouched.
