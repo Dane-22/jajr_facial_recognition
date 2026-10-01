@@ -172,4 +172,9 @@ The production authentication incident described in the September 30 entry was r
 4. Test backup download/restore, cache outage behavior, role restrictions, settings effects, reports, and exports with staging data. Reconcile production counts using read-only SQL after the timestamp convention is established.
 5. Prepare a database backup and reviewed rollout. Rebuild and deploy backend/frontend, then verify the new health endpoint, reports, filters, console, and asset hashes. No Git commit, push, or production deployment was made in this update.
 
+### October 1 release attempt
+
+- Committed the admin dashboard fixes, tests, review, and implementation plan as `f0d757a` (`Improve admin dashboard reporting and settings`) and pushed it to GitHub `main`. Screenshot additions and deletions were excluded from the commit.
+- The Windows workstation could not establish SSH to `72.62.254.60:22` (`Connection timed out`). No fresh database backup, server fetch, image build, container restart, or production verification was performed. Production remains on its prior deployed build until the VPS checkout is updated.
+
 The user's screenshot additions and earlier screenshot deletions were left untouched.
