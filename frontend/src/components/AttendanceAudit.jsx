@@ -284,13 +284,14 @@ const AttendanceAudit = () => {
     setIsExporting(true);
     setTimeout(() => setIsExporting(false), 2000);
 
-    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp'];
+    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp', 'Site'];
     const rows = filteredLogs.map(log => [
       log.id,
       log.name,
       log.role,
       log.status,
-      formatTimestamp(log.timestamp)
+      formatTimestamp(log.timestamp),
+      log.site_name || ''
     ]);
 
     const csvContent = [headers, ...rows]
@@ -594,6 +595,7 @@ const AttendanceAudit = () => {
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">
                     Location
                   </th>
+                  <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">Site</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -634,6 +636,7 @@ const AttendanceAudit = () => {
                         <span className="text-slate-400 italic">No location data</span>
                       )}
                     </td>
+                    <td className="px-5 py-3 text-xs text-slate-700">{log.site_name || 'Historical'}</td>
                   </tr>
                 ))}
               </tbody>

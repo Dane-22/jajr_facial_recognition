@@ -1,24 +1,12 @@
 const pool = require('../config/db');
 const { manualLog } = require('../middleware/audit');
 const crypto = require('crypto');
-
-function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Radius of the earth in m
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  return R * c; // Distance in m
-}
+const { validCoordinates, attendanceSiteDecision } = require('../utils/siteRules');
 
 const getPublicSettings = async (req, res) => {
   try {
-    const [settings] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key = "geofencing_enabled"');
-    const isEnabled = settings.length > 0 && settings[0].setting_value === 'true';
-    res.json({ geofencing_enabled: isEnabled });
+    await pool.ready;
+    res.json({ geofencing_enabled: true });
   } catch (error) {
     console.error('[AttendanceSettings] Failed to read settings:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -26,6 +14,7 @@ const getPublicSettings = async (req, res) => {
 };
 
 const logAttendance = async (req, res) => {
+  let connection;
   try {
     const { userId, status, timestamp, signature, latitude, longitude } = req.body;
 
@@ -77,7 +66,18 @@ const logAttendance = async (req, res) => {
       actualUserId = parseInt(userId);
     }
 
-    const antiSpamCheck = await pool.query(
+    await pool.ready;
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const reject = async (code, error) => {
+      await connection.rollback();
+      connection.release();
+      connection = null;
+      return res.status(code).json({ error });
+    };
+    const [lockedUser] = await connection.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [actualUserId]);
+    if (!lockedUser.length) return reject(404, 'Employee not found.');
+    const antiSpamCheck = await connection.query(
       `SELECT * FROM attendance_logs 
        WHERE user_id = ? 
        AND status = ? 
@@ -86,45 +86,33 @@ const logAttendance = async (req, res) => {
     );
 
     if (antiSpamCheck[0].length > 0) {
-      return res.status(429).json({ 
-        error: 'Please wait at least 60 seconds before logging again with the same status' 
-      });
+      return reject(429, 'Please wait at least 60 seconds before logging again with the same status.');
     }
 
-    // Check geofencing
-    const [settings] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
-    const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
-    
-    if (settingsMap.geofencing_enabled === 'true') {
-      const lat = Number(latitude);
-      const lon = Number(longitude);
-      const officeLat = Number(settingsMap.office_latitude);
-      const officeLon = Number(settingsMap.office_longitude);
-      const radius = Number(settingsMap.geofence_radius_meters);
-      if (!settingsMap.office_latitude || !Number.isFinite(officeLat) || Math.abs(officeLat) > 90 ||
-          !settingsMap.office_longitude || !Number.isFinite(officeLon) || Math.abs(officeLon) > 180 ||
-          !Number.isFinite(radius) || radius <= 0 || radius > 10000) {
-        console.error('[Geofencing] Invalid office configuration');
-        return res.status(503).json({ error: 'Attendance location rules are unavailable. Please contact an administrator.' });
-      }
-      if (latitude == null || longitude == null || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-        return res.status(400).json({ error: 'Location (latitude and longitude) is required when geofencing is enabled.' });
-      }
-      const distance = getDistanceFromLatLonInM(
-        lat,
-        lon,
-        officeLat,
-        officeLon
-      );
-      if (distance > radius) {
-        return res.status(403).json({ error: `Check-in failed. You are ${Math.round(distance)}m away from the office, which exceeds the allowed ${radius}m radius.` });
-      }
+    if (!validCoordinates(latitude, longitude)) {
+      return reject(400, 'Current location is required for attendance. Enable precise location and try again.');
     }
-
-    const [result] = await pool.query(
-      'INSERT INTO attendance_logs (user_id, status, timestamp, latitude, longitude) VALUES (?, ?, NOW(), ?, ?)',
-      [actualUserId, status, latitude || null, longitude || null]
+    const [assignedSites] = await connection.query(`SELECT s.id, s.name, s.latitude, s.longitude, s.radius_meters
+      FROM sites s JOIN employee_sites es ON es.site_id = s.id
+      WHERE es.user_id = ? AND s.active = 1`, [actualUserId]);
+    const [sessions] = await connection.query(`SELECT ss.site_id AS id, ss.site_id, s.name, s.latitude, s.longitude, s.radius_meters
+      FROM employee_site_sessions ss JOIN sites s ON s.id = ss.site_id WHERE ss.user_id = ?`, [actualUserId]);
+    const decision = attendanceSiteDecision(assignedSites, sessions[0], status, latitude, longitude);
+    if (decision.error) return reject(decision.code, decision.error);
+    const { site } = decision;
+    const [result] = await connection.query(
+      'INSERT INTO attendance_logs (user_id, status, timestamp, latitude, longitude, site_id) VALUES (?, ?, NOW(), ?, ?, ?)',
+      [actualUserId, status, Number(latitude), Number(longitude), site.id]
     );
+    if (status === 'IN') {
+      await connection.query(`INSERT INTO employee_site_sessions (user_id, site_id, in_log_id, started_at)
+        VALUES (?, ?, ?, NOW())`, [actualUserId, site.id, result.insertId]);
+    } else {
+      await connection.query('DELETE FROM employee_site_sessions WHERE user_id = ?', [actualUserId]);
+    }
+    await connection.commit();
+    connection.release();
+    connection = null;
 
     // Log attendance action
     await manualLog(
@@ -134,7 +122,7 @@ const logAttendance = async (req, res) => {
       'attendance',
       result.insertId,
       null,
-      { userId: actualUserId, status, timestamp: new Date() },
+      { userId: actualUserId, status, siteId: site.id, timestamp: new Date() },
       req.ip || req.connection.remoteAddress,
       req.get('user-agent') || null
     );
@@ -153,6 +141,8 @@ const logAttendance = async (req, res) => {
         name: userName,
         role: userRole,
         status,
+        site_id: site.id,
+        site_name: site.name,
         timestamp: new Date().toISOString()
       });
     }
@@ -162,11 +152,17 @@ const logAttendance = async (req, res) => {
       logId: result.insertId,
       userId: actualUserId,
       name: userName,
-      status
+      status,
+      siteId: site.id,
+      siteName: site.name
     });
   } catch (error) {
+    if (connection) {
+      await connection.rollback().catch(() => {});
+      connection.release();
+    }
     console.error('Error logging attendance:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Unable to record attendance. Please try again.' });
   }
 };
 
@@ -176,9 +172,10 @@ const getDailyLogs = async (req, res) => {
     
     const selectedDate = date || new Date().toISOString().split('T')[0];
     
-    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, users.name, users.role, users.id as user_id
+    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role, users.id as user_id
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
+       LEFT JOIN sites ON sites.id = attendance_logs.site_id
        WHERE DATE(attendance_logs.timestamp) = ?`;
     const params = [selectedDate];
     
@@ -218,9 +215,10 @@ const getDailyLogs = async (req, res) => {
 const getAllLogs = async (req, res) => {
   try {
     const [logs] = await pool.query(
-      `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, users.name, users.role
+      `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
+       LEFT JOIN sites ON sites.id = attendance_logs.site_id
        ORDER BY attendance_logs.timestamp DESC
        LIMIT 1000`
     );

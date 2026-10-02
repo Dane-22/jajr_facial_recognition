@@ -214,9 +214,13 @@ app.use('/api/assistant', assistantRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/face', faceRoutes);
 
-server.listen(PORT, async () => {
+pool.ready.then(() => server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   loadModels().then(() => console.log('[FaceRecognition] Models ready')).catch(error => console.error('[FaceRecognition] Model preload failed:', error));
   // Attempt Redis connection — falls back to node-cache if unavailable
   await connectRedis();
+})).catch(async error => {
+  console.error('Database migration failed; server was not started:', error);
+  await pool.end().catch(() => {});
+  process.exitCode = 1;
 });

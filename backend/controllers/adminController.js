@@ -285,8 +285,9 @@ const getSettings = async (req, res) => {
 
     const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
     const settingsMap = {};
+    const oldGeoKeys = new Set(['geofencing_enabled', 'office_latitude', 'office_longitude', 'geofence_radius_meters']);
     rows.forEach(r => {
-      settingsMap[r.setting_key] = r.setting_value;
+      if (!oldGeoKeys.has(r.setting_key)) settingsMap[r.setting_key] = r.setting_value;
     });
 
     const defaultSettings = {
@@ -298,10 +299,6 @@ const getSettings = async (req, res) => {
       work_end_time: '17:00',
       auto_checkout: 'false',
       email_alerts: 'true',
-      geofencing_enabled: 'false',
-      office_latitude: '16.614897727493535',
-      office_longitude: '120.35392215651272',
-      geofence_radius_meters: '100',
       ...settingsMap
     };
 
@@ -315,23 +312,12 @@ const getSettings = async (req, res) => {
 const updateSettings = async (req, res) => {
   try {
     const settings = req.body;
+    if (settings && Object.keys(settings).some(key => ['geofencing_enabled', 'office_latitude', 'office_longitude', 'geofence_radius_meters'].includes(key))) {
+      return res.status(400).json({ error: 'Geofencing is now managed under Sites.' });
+    }
     const validationError = validateSettings(settings);
     if (validationError) return res.status(400).json({ error: validationError });
     await ensureSettingsTable();
-    const [geofenceRows] = await pool.query(
-      "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('geofencing_enabled', 'office_latitude', 'office_longitude', 'geofence_radius_meters')"
-    );
-    const effectiveGeofence = Object.fromEntries(geofenceRows.map(row => [row.setting_key, row.setting_value]));
-    Object.assign(effectiveGeofence, settings);
-    if (String(effectiveGeofence.geofencing_enabled) === 'true') {
-      for (const key of ['office_latitude', 'office_longitude', 'geofence_radius_meters']) {
-        if (effectiveGeofence[key] == null || effectiveGeofence[key] === '') {
-          return res.status(400).json({ error: `${key} is required when geofencing is enabled` });
-        }
-      }
-      const geofenceError = validateSettings(effectiveGeofence);
-      if (geofenceError) return res.status(400).json({ error: geofenceError });
-    }
     const adminId = req.user?.id || 1;
 
     for (const [key, val] of Object.entries(settings)) {

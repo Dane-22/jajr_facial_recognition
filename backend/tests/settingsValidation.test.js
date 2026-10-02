@@ -6,15 +6,14 @@ test('accepts the current admin settings payload', () => {
   assert.equal(validateSettings({
     confidence_threshold: '0.85', camera_resolution: '1080p', scan_cooldown: '3',
     work_start_time: '08:00', late_grace_period: '15', work_end_time: '17:00',
-    auto_checkout: 'false', email_alerts: 'true', geofencing_enabled: 'true',
-    office_latitude: '16.6148', office_longitude: '120.3539', geofence_radius_meters: '100'
+    auto_checkout: 'false', email_alerts: 'true'
   }), null);
 });
 
-test('rejects malformed geofence settings and unknown keys before saving', () => {
-  assert.match(validateSettings({ office_latitude: 'not-a-number' }), /latitude/i);
-  assert.match(validateSettings({ geofence_radius_meters: '0' }), /radius/i);
-  assert.match(validateSettings({ office_longitude: '181' }), /longitude/i);
+test('rejects retired geofence settings and unknown keys before saving', () => {
+  assert.match(validateSettings({ office_latitude: '16.6' }), /Unknown setting/i);
+  assert.match(validateSettings({ geofence_radius_meters: '100' }), /Unknown setting/i);
+  assert.match(validateSettings({ geofencing_enabled: 'false' }), /Unknown setting/i);
   assert.match(validateSettings({ unexpected_admin_key: 'value' }), /Unknown setting/i);
 });
 

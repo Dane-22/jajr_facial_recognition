@@ -88,7 +88,8 @@ async function scanAttendance(req, res) {
       if (req.isPublicKiosk) return res.json({ skipped: true, userId: result.user.id, name: result.user.name });
       return res.status(429).json({ error: 'Attendance was recorded recently. Please wait before retrying.' });
     }
-    const status = minutesSinceLast > 720 || previous?.status === 'OUT' ? 'IN' : 'OUT';
+    const [openSessions] = await pool.query('SELECT site_id FROM employee_site_sessions WHERE user_id = ?', [result.user.id]);
+    const status = openSessions.length ? 'OUT' : 'IN';
     req.body = { userId: result.user.id, status, latitude: req.body.latitude, longitude: req.body.longitude };
     return await logAttendance(req, res);
   } catch (error) {

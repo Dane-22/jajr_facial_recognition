@@ -140,13 +140,14 @@ const DailyLogs = () => {
     setIsExporting(true);
     setTimeout(() => setIsExporting(false), 2000);
 
-    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp'];
+    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp', 'Site'];
     const rows = logs.map(log => [
       log.id,
       log.name,
       log.role,
       log.status,
-      formatTimestamp(log.timestamp)
+      formatTimestamp(log.timestamp),
+      log.site_name || ''
     ]);
     const csvContent = serializeCsv([headers, ...rows]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -210,6 +211,11 @@ const DailyLogs = () => {
           {formatTimestamp(value)}
         </span>
       )
+    },
+    {
+      header: 'Site',
+      key: 'site_name',
+      render: value => <span className="text-xs font-semibold text-slate-700">{value || 'Historical'}</span>
     },
     {
       header: 'Location',

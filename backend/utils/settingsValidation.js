@@ -1,8 +1,7 @@
 const ALLOWED_KEYS = new Set([
   'confidence_threshold', 'camera_resolution', 'scan_cooldown',
   'work_start_time', 'late_grace_period', 'work_end_time',
-  'auto_checkout', 'email_alerts', 'geofencing_enabled',
-  'office_latitude', 'office_longitude', 'geofence_radius_meters'
+  'auto_checkout', 'email_alerts'
 ]);
 
 const isFiniteNumberInRange = (value, min, max) => {
@@ -46,17 +45,7 @@ const validateSettings = (settings) => {
         break;
       case 'auto_checkout':
       case 'email_alerts':
-      case 'geofencing_enabled':
         if (!['true', 'false'].includes(text)) return `Invalid value for ${key}`;
-        break;
-      case 'office_latitude':
-        if (!isFiniteNumberInRange(text, -90, 90)) return 'Invalid office latitude';
-        break;
-      case 'office_longitude':
-        if (!isFiniteNumberInRange(text, -180, 180)) return 'Invalid office longitude';
-        break;
-      case 'geofence_radius_meters':
-        if (!isFiniteNumberInRange(text, 1, 10000)) return 'Geofence radius must be 1 to 10000 meters';
         break;
     }
   }

@@ -170,21 +170,24 @@ export default function CameraFeed({ onFaceDetected }) {
           } else {
             blocked.add(result.userId);
             saveBlocked();
-            onFaceDetected({ userId: result.userId, name: result.name, status: result.status, timestamp: Date.now() });
+            onFaceDetected({ userId: result.userId, name: result.name, status: result.status, siteName: result.siteName, timestamp: Date.now() });
             clearTimeout(confirmationTimer);
             setConfirmation({ name: result.name, status: result.status });
             confirmationTimer = setTimeout(() => {
               confirmationTimer = null;
               setConfirmation(null);
             }, 2000);
-            setMessage(`${result.name}: ${result.status} recorded. The next person may step forward.`);
+            setMessage(`${result.name}: ${result.status} at ${result.siteName || 'assigned site'} recorded. The next person may step forward.`);
           }
           schedule(2500);
         } else {
-          if (response.status === 403) {
+          if (response.status === 403 && result.error?.includes('approved website')) {
             stop();
             setStatus('error');
             setMessage(result.error || 'Scanner access is not configured for this website.');
+          } else if (response.status === 403 || response.status === 409 || response.status === 400) {
+            setMessage(result.error || 'Attendance could not be recorded at this site.');
+            schedule(5000);
           } else if (response.status === 503) {
             setMessage('Scanner is busy. Retrying shortly...');
             schedule(2000);

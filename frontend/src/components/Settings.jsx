@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SiteManagement from './SiteManagement';
 
 const API_URL = '/api';
 
@@ -19,11 +20,7 @@ const Settings = () => {
     late_grace_period: '15',
     work_end_time: '17:00',
     auto_checkout: 'false',
-    email_alerts: 'true',
-    geofencing_enabled: 'false',
-    office_latitude: '16.614897727493535',
-    office_longitude: '120.35392215651272',
-    geofence_radius_meters: '100'
+    email_alerts: 'true'
   });
 
   // Change Password State
@@ -70,7 +67,9 @@ const Settings = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.settings) {
-          setSettings(prev => ({ ...prev, ...data.settings }));
+          const legacyGeoKeys = new Set(['geofencing_enabled', 'office_latitude', 'office_longitude', 'geofence_radius_meters']);
+          const generalSettings = Object.fromEntries(Object.entries(data.settings).filter(([key]) => !legacyGeoKeys.has(key)));
+          setSettings(prev => ({ ...prev, ...generalSettings }));
         }
       }
     } catch (err) {
@@ -631,91 +630,7 @@ const Settings = () => {
           </div>
         )}
 
-        {/* ─── TAB 2.5: GEOLOCATION & GEOFENCING ──────────────────────────── */}
-        {activeSubTab === 'geolocation' && (
-          <div className="space-y-6 max-w-3xl">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Geolocation & Geofencing Parameters</h3>
-              <p className="text-xs text-slate-500">Enforce physical location boundaries for employee attendance logging.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 flex items-center justify-between col-span-1 md:col-span-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800">Enable Strict Geofencing</label>
-                  <p className="text-[10px] text-slate-500">When enabled, users must be within the defined office radius to clock in or out.</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={settings.geofencing_enabled === 'true'}
-                  onChange={(e) => handleSettingsChange('geofencing_enabled', e.target.checked ? 'true' : 'false')}
-                  className="w-5 h-5 accent-slate-900 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <label className="block text-xs font-bold text-slate-800">Office Latitude</label>
-                <input
-                  type="text"
-                  value={settings.office_latitude}
-                  onChange={(e) => handleSettingsChange('office_latitude', e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                />
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <label className="block text-xs font-bold text-slate-800">Office Longitude</label>
-                <input
-                  type="text"
-                  value={settings.office_longitude}
-                  onChange={(e) => handleSettingsChange('office_longitude', e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                />
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <label className="block text-xs font-bold text-slate-800">Allowed Radius (Meters)</label>
-                <input
-                  type="number"
-                  min="10"
-                  max="1000"
-                  value={settings.geofence_radius_meters}
-                  onChange={(e) => handleSettingsChange('geofence_radius_meters', e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                />
-                <p className="text-[10px] text-slate-500">Maximum distance from office to allow check-in.</p>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 col-span-1 md:col-span-2">
-                <label className="block text-xs font-bold text-slate-800">Office Location Map preview</label>
-                <div className="w-full rounded-xl overflow-hidden border border-slate-300 bg-white">
-                  {settings.office_latitude && settings.office_longitude ? (
-                    <iframe 
-                      width="100%" 
-                      height="300" 
-                      frameBorder="0" 
-                      scrolling="no" 
-                      marginHeight="0" 
-                      marginWidth="0" 
-                      src={`https://maps.google.com/maps?q=${settings.office_latitude},${settings.office_longitude}&hl=en&z=16&output=embed`}
-                    ></iframe>
-                  ) : (
-                    <div className="w-full h-[300px] flex items-center justify-center text-slate-400 italic text-sm">
-                      Please enter valid coordinates to preview location.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={saveSettings}
-              disabled={loading}
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
-              {loading ? 'Saving...' : 'Save Geolocation Settings'}
-            </button>
-          </div>
-        )}
+        {activeSubTab === 'geolocation' && <SiteManagement />}
       </div>
     </div>
   );

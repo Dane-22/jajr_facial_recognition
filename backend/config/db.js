@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
+const { migrateSites } = require('../utils/siteMigration');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -114,8 +115,11 @@ const runMigrations = async () => {
   } catch (err) {
     console.warn('[DB Migration] Auto-migration check warning:', err.message);
   }
+  // Site rules are required for every attendance scan. Fail startup if this migration fails.
+  await migrateSites(pool);
 };
 
-runMigrations();
+pool.ready = runMigrations();
+pool.ready.catch(() => {});
 
 module.exports = pool;

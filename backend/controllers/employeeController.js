@@ -117,10 +117,22 @@ const createEmployee = async (req, res) => {
     const faceDescriptorJson = JSON.stringify(face_descriptor);
     const encryptedDescriptor = encrypt(faceDescriptorJson);
 
-    const [result] = await pool.query(
-      'INSERT INTO users (name, role, face_descriptor) VALUES (?, ?, ?)',
-      [name, role, encryptedDescriptor]
-    );
+    const connection = await pool.getConnection();
+    let result;
+    try {
+      await connection.beginTransaction();
+      [result] = await connection.query('INSERT INTO users (name, role, face_descriptor) VALUES (?, ?, ?)',
+        [name, role, encryptedDescriptor]);
+      const [assignment] = await connection.query(`INSERT INTO employee_sites (user_id, site_id)
+        SELECT ?, id FROM sites WHERE site_key = 'MAIN_OFFICE'`, [result.insertId]);
+      if (!assignment.affectedRows) throw new Error('Main Office site is missing.');
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
 
     const [newEmployee] = await pool.query(
       'SELECT id, name, role, created_at FROM users WHERE id = ?',
