@@ -19,6 +19,7 @@ export default function CameraFeed({ onFaceDetected }) {
   const [confirmation, setConfirmation] = useState(null);
   const [scanPhase, setScanPhase] = useState(null);
   const [scanElapsedMs, setScanElapsedMs] = useState(0);
+  const [locationProblem, setLocationProblem] = useState(null);
 
   useEffect(() => {
     let disposed = false;
@@ -38,6 +39,7 @@ export default function CameraFeed({ onFaceDetected }) {
     let serverFailures = 0;
     let geofencingEnabled = false;
     let location = null;
+    let forceFreshLocation = false;
     const blocked = storedFaces();
     const motionCanvas = document.createElement('canvas');
     motionCanvas.width = 32;
@@ -61,6 +63,7 @@ export default function CameraFeed({ onFaceDetected }) {
       clearTimeout(confirmationTimer);
       finishScan();
       if (!disposed) setConfirmation(null);
+      if (!disposed) setLocationProblem(null);
       request?.abort();
       stream?.getTracks().forEach(track => track.stop());
       stream = null;
@@ -88,12 +91,17 @@ export default function CameraFeed({ onFaceDetected }) {
 
     const currentLocation = async () => {
       if (!geofencingEnabled) return {};
-      if (location && Date.now() - location.time < 15000) return location.coords;
+      if (!forceFreshLocation && location && Date.now() - location.time < 15000) return location.coords;
       if (!navigator.geolocation) throw new Error('Location access is required at this site.');
       const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true, timeout: 10000, maximumAge: 15000
+        enableHighAccuracy: true, timeout: 10000, maximumAge: forceFreshLocation ? 0 : 15000
       }));
-      location = { time: Date.now(), coords: { latitude: position.coords.latitude, longitude: position.coords.longitude } };
+      location = {
+        time: Date.now(),
+        coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
+        accuracy: position.coords.accuracy
+      };
+      forceFreshLocation = false;
       return location.coords;
     };
 
@@ -146,6 +154,7 @@ export default function CameraFeed({ onFaceDetected }) {
         if (!active || disposed || scanGeneration !== generation) return;
         if ((response.ok && result.matched === false) || response.status === 422) {
           serverFailures = 0;
+          setLocationProblem(null);
           if (result.reason === 'no_face') {
             recentFace = false;
             emptyFrames += 1;
@@ -161,6 +170,7 @@ export default function CameraFeed({ onFaceDetected }) {
           schedule(1200);
         } else if (response.ok) {
           serverFailures = 0;
+          setLocationProblem(null);
           recentFace = true;
           emptyFrames = 0;
           if (result.skipped) {
@@ -181,6 +191,19 @@ export default function CameraFeed({ onFaceDetected }) {
           }
           schedule(2500);
         } else {
+          if (result.reason === 'outside_site_boundary') {
+            setLocationProblem({
+              ...coords,
+              accuracy: location?.accuracy,
+              siteName: result.siteName,
+              distanceMeters: result.distanceMeters,
+              allowedRadiusMeters: result.allowedRadiusMeters
+            });
+            location = null;
+            forceFreshLocation = true;
+          } else {
+            setLocationProblem(null);
+          }
           if (response.status === 403 && result.error?.includes('approved website')) {
             stop();
             setStatus('error');
@@ -227,6 +250,7 @@ export default function CameraFeed({ onFaceDetected }) {
       starting = true;
       setStatus('starting');
       setMessage('Starting camera...');
+      setLocationProblem(null);
       try {
         const settingsResponse = await fetch('/api/attendance/settings');
         if (!settingsResponse.ok) throw new Error('Attendance server unavailable.');
@@ -306,6 +330,14 @@ export default function CameraFeed({ onFaceDetected }) {
     <div aria-live="polite" className="mt-3 text-sm text-slate-700">
       <p>{message}</p>
       {status === 'active' && <p className="text-xs text-slate-500">Camera: {resolution}</p>}
+      {status === 'active' && locationProblem && <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+        <p>Your device reported you {locationProblem.distanceMeters} m from {locationProblem.siteName} (allowed {locationProblem.allowedRadiusMeters} m).
+          {Number.isFinite(locationProblem.accuracy) && ` Its reported accuracy was ±${Math.round(locationProblem.accuracy)} m.`}
+          {' '}The next scan will request a fresh location.</p>
+        <details className="mt-1"><summary className="cursor-pointer underline">Show reported coordinates</summary>
+          <p>{locationProblem.latitude?.toFixed(6)}, {locationProblem.longitude?.toFixed(6)}</p>
+        </details>
+      </div>}
     </div>
     {status === 'active' && confirmation && <div role="alert" className="fixed inset-0 z-[100] flex overflow-y-auto bg-slate-950/95 px-4 py-4 text-center text-white sm:px-8 sm:py-8">
       <div className="m-auto w-full max-w-2xl rounded-3xl border-4 border-emerald-300 bg-emerald-700 px-5 py-6 shadow-2xl sm:px-10 sm:py-14">

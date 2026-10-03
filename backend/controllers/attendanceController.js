@@ -69,11 +69,11 @@ const logAttendance = async (req, res) => {
     await pool.ready;
     connection = await pool.getConnection();
     await connection.beginTransaction();
-    const reject = async (code, error) => {
+    const reject = async (code, error, details = {}) => {
       await connection.rollback();
       connection.release();
       connection = null;
-      return res.status(code).json({ error });
+      return res.status(code).json({ error, ...details });
     };
     const [lockedUser] = await connection.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [actualUserId]);
     if (!lockedUser.length) return reject(404, 'Employee not found.');
@@ -98,7 +98,14 @@ const logAttendance = async (req, res) => {
     const [sessions] = await connection.query(`SELECT ss.site_id AS id, ss.site_id, s.name, s.latitude, s.longitude, s.radius_meters
       FROM employee_site_sessions ss JOIN sites s ON s.id = ss.site_id WHERE ss.user_id = ?`, [actualUserId]);
     const decision = attendanceSiteDecision(assignedSites, sessions[0], status, latitude, longitude);
-    if (decision.error) return reject(decision.code, decision.error);
+    if (decision.error) return reject(decision.code, decision.error, decision.reason === 'outside_site_boundary'
+      ? {
+          reason: decision.reason,
+          siteName: decision.siteName,
+          distanceMeters: decision.distanceMeters,
+          allowedRadiusMeters: decision.allowedRadiusMeters
+        }
+      : {});
     const { site } = decision;
     const [result] = await connection.query(
       'INSERT INTO attendance_logs (user_id, status, timestamp, latitude, longitude, site_id) VALUES (?, ?, NOW(), ?, ?, ?)',

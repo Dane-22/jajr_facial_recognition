@@ -24,6 +24,17 @@ function matchingSite(sites, latitude, longitude) {
     .sort((a, b) => a.distance - b.distance)[0] || null;
 }
 
+function outsideBoundary(site, latitude, longitude, error) {
+  return {
+    error,
+    code: 403,
+    reason: 'outside_site_boundary',
+    siteName: site.name,
+    distanceMeters: Math.round(distanceMeters(Number(latitude), Number(longitude), Number(site.latitude), Number(site.longitude))),
+    allowedRadiusMeters: Number(site.radius_meters)
+  };
+}
+
 function attendanceSiteDecision(assignedSites, openSession, status, latitude, longitude) {
   if (!assignedSites.length) return { error: 'You have no active assigned site. Contact an administrator.', code: 403 };
   if (openSession && status !== 'OUT') return {
@@ -33,11 +44,19 @@ function attendanceSiteDecision(assignedSites, openSession, status, latitude, lo
   if (openSession && !assignedSites.some(site => site.id === openSession.site_id)) return {
     error: `Your ${openSession.name} assignment is inactive. Contact a Superadmin to correct the open time-in.`, code: 403
   };
-  if (openSession && !matchingSite([openSession], latitude, longitude)) return {
-    error: `You timed in at ${openSession.name}. Return there to time out, or contact a Superadmin for a correction.`, code: 403
-  };
+  if (openSession && !matchingSite([openSession], latitude, longitude)) return outsideBoundary(
+    openSession, latitude, longitude,
+    `You timed in at ${openSession.name}. Return there to time out, or contact a Superadmin for a correction.`
+  );
   const site = openSession || matchingSite(assignedSites, latitude, longitude);
-  if (!site) return { error: 'You are outside the allowed boundary of your assigned sites.', code: 403 };
+  if (!site) {
+    const nearest = assignedSites.reduce((best, candidate) => {
+      const distance = distanceMeters(Number(latitude), Number(longitude), Number(candidate.latitude), Number(candidate.longitude));
+      const excess = distance - Number(candidate.radius_meters);
+      return !best || excess < best.excess ? { site: candidate, excess } : best;
+    }, null).site;
+    return outsideBoundary(nearest, latitude, longitude, 'You are outside the allowed boundary of your assigned sites.');
+  }
   return { site };
 }
 

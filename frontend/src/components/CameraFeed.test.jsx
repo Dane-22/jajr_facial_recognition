@@ -49,3 +49,45 @@ test('camera starts automatically and stops when the kiosk view closes', async (
   view.unmount();
   expect(stop).toHaveBeenCalled();
 });
+
+test('shows the reported location and requests a fresh fix after a site-boundary rejection', async () => {
+  const getUserMedia = vi.fn().mockResolvedValue({
+    getTracks: () => [{ stop: vi.fn() }],
+    getVideoTracks: () => [{ getSettings: () => ({ width: 640, height: 480 }) }]
+  });
+  const getCurrentPosition = vi.fn(success => success({
+    coords: { latitude: 16.616500, longitude: 120.353922, accuracy: 175 }
+  }));
+  const fetchMock = vi.fn(url => Promise.resolve(url === '/api/attendance/settings'
+    ? { ok: true, json: async () => ({ geofencing_enabled: true }) }
+    : {
+        ok: false, status: 403,
+        json: async () => ({
+          error: 'You are outside the allowed boundary of your assigned sites.',
+          reason: 'outside_site_boundary', siteName: 'Main Office',
+          distanceMeters: 178, allowedRadiusMeters: 100
+        })
+      }));
+  vi.stubGlobal('fetch', fetchMock);
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+  Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition } });
+  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+  vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage: vi.fn(), getImageData: () => ({ data: new Uint8ClampedArray(32 * 24 * 4) })
+  });
+  vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,abcd');
+
+  const view = render(<CameraFeed onFaceDetected={vi.fn()} />);
+  const video = view.container.querySelector('video');
+  Object.defineProperty(video, 'readyState', { configurable: true, get: () => 4 });
+  Object.defineProperty(video, 'videoWidth', { configurable: true, get: () => 640 });
+  Object.defineProperty(video, 'videoHeight', { configurable: true, get: () => 480 });
+  await waitFor(() => expect(view.getByText(/Your device reported you 178 m/)).toBeTruthy());
+  expect(view.getByText(/accuracy was ±175 m/)).toBeTruthy();
+  expect(getCurrentPosition.mock.calls[0][2].maximumAge).toBe(15000);
+  await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(2), { timeout: 7000 });
+  expect(getCurrentPosition.mock.calls[1][2].maximumAge).toBe(0);
+  view.unmount();
+}, 8000);

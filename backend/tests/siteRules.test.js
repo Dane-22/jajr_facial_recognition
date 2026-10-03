@@ -23,8 +23,14 @@ test('requires a time-out at the site with the open time-in', () => {
   const a = { id: 1, site_id: 1, name: 'PANICSICAN', latitude: 16.6625838, longitude: 120.3322232, radius_meters: 100 };
   const b = { id: 2, site_id: 2, name: 'YARD', latitude: 16.6137584, longitude: 120.3430499, radius_meters: 100 };
   assert.equal(attendanceSiteDecision([a, b], null, 'IN', a.latitude, a.longitude).site.id, 1);
-  assert.match(attendanceSiteDecision([a, b], a, 'OUT', b.latitude, b.longitude).error, /PANICSICAN/);
+  const wrongSite = attendanceSiteDecision([a, b], a, 'OUT', b.latitude, b.longitude);
+  assert.match(wrongSite.error, /PANICSICAN/);
+  assert.equal(wrongSite.reason, 'outside_site_boundary');
+  assert.ok(wrongSite.distanceMeters > wrongSite.allowedRadiusMeters);
   assert.equal(attendanceSiteDecision([a, b], a, 'OUT', a.latitude, a.longitude).site.id, 1);
   assert.match(attendanceSiteDecision([a, b], a, 'IN', b.latitude, b.longitude).error, /Time out/);
   assert.equal(attendanceSiteDecision([a, b], null, 'IN', b.latitude, b.longitude).site.id, 2);
+  const outside = attendanceSiteDecision([a, b], null, 'IN', 16.6700000, 120.3323000);
+  assert.equal(outside.reason, 'outside_site_boundary');
+  assert.ok(outside.distanceMeters > outside.allowedRadiusMeters);
 });
