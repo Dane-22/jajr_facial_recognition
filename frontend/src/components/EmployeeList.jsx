@@ -750,7 +750,7 @@ const EmployeeList = () => {
                         autoPlay
                         muted
                         playsInline
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover -scale-x-100"
                         onLoadedMetadata={() => {
                           if (videoRef.current) {
                             videoRef.current.play();
@@ -758,7 +758,7 @@ const EmployeeList = () => {
                         }}/>
                       <canvas
                         ref={canvasRef}
-                        className="absolute top-0 left-0 w-full h-full"/>
+                        className="absolute top-0 left-0 w-full h-full -scale-x-100"/>
                       <button
                         type="button"
                         onClick={captureFaceDescriptor}

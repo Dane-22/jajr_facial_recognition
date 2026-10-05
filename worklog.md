@@ -1,6 +1,6 @@
 # Worklog — 2026-09-29 (Asia/Manila)
 
-## Current status — 2026-10-01 (Asia/Manila)
+## Current status — 2026-10-03 (Asia/Manila)
 
 This worklog is chronological. Earlier statements such as “not deployed” describe the state at that time; the latest status is below.
 
@@ -11,7 +11,8 @@ This worklog is chronological. Earlier statements such as “not deployed” des
 | Admin dashboard review and fixes | Reviewed all eight signed-in sections, wrote the review and implementation plan, fixed the listed reporting, audit, deletion-guard, settings, health, cache, and CSV issues, and deployed the backend/frontend update. A fresh verified logical backup preceded that deployment. |
 | Localhost setup | Replaced ignored `backend/.env` with tested WAMP localhost values and unique local secrets, added Vite Socket.IO proxying, and updated the setup guide. MySQL, local frontend/API, Socket.IO, and lint checks passed. |
 | Production secrets | The operator added generated `JWT_SECRET` and `KIOSK_API_KEY` values and recreated the backend; masked checks showed both loaded. Existing admin sessions need a fresh sign-in. |
-| Scanner timer | Commit `04667bb` was pushed. The public site now serves `index-DyUvixAc.js` and `CameraFeed-DimPR6qf.js`, and the live camera bundle contains the location/face phase labels. An actual on-device timed scan has not yet been observed. |
+| Scanner timer | Commit `04667bb` was deployed before the multi-site update. An actual on-device timed scan has not yet been observed. |
+| Multi-site geofencing | Commit `d6c9a36` is deployed on the production VPS. A verified backup preceded the migration; the three sites and nine initial Main Office assignments were confirmed. A Main Office scan matched the employee but was rejected by the location boundary; diagnostic update `8826d71` is deployed to measure the phone's reported distance and accuracy. |
 
 Open work remains in the admin implementation plan: timestamp/timezone reconciliation, employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
 
@@ -213,3 +214,50 @@ The production authentication incident described in the September 30 entry was r
 - Frontend lint and production build passed locally. Later public asset checks showed the deployed `index-DyUvixAc.js` and `CameraFeed-DimPR6qf.js` files, including both timer phase labels. Real-device scan timing remains unverified.
 
 The user's screenshot additions and earlier screenshot deletions were left untouched.
+
+## Multi-site geofencing and deployment attempt - 2026-10-02 (Asia/Manila)
+
+### Decisions and implementation
+
+- Reviewed the project and Settings geolocation/geofencing flow with the operator before coding. Agreed that employees may be assigned to one or more sites, but each time-in must be within an assigned site's boundary. A time-out must occur at the same site as its open time-in. An employee must close that session before timing in at another site.
+- Agreed to use a 100 m radius for the initial three sites: Main Office (renamed from the existing office and seeded from its stored coordinates), PANICSICAN (`16.6625838, 120.3322232`), and YARD (`16.6137584, 120.3430499`). Existing employees receive Main Office initially; newly registered employees also receive Main Office. A Superadmin can record a reasoned time-out correction when an employee forgets to time out.
+- Added the site tables and startup migration, assignment and open-session records, site-aware attendance validation, site administration UI under Settings, and site labels in attendance views. The migration seeds the initial sites and assignments once. Site updates cannot change a boundary or deactivate a site with an open time-in; assignment changes cannot remove the site of an open time-in.
+- After the operator reported unclear assignment-save behavior, added per-employee “Saving...”, “Assignments saved.”, and error feedback.
+- Committed and pushed the implementation to GitHub `main` as `d6c9a366cc0b54cc308f3c2948ccde408548a214` (`Add multi-site geofencing and assignment feedback`). Unrelated local screenshot and documentation changes were left out of the commit.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Frontend production build | Passed. |
+| Frontend tests | Passed: 9 tests. |
+| Focused backend tests | Passed: 6 tests. |
+| Selected frontend ESLint and `git diff --check` | Passed. |
+| GitHub `main` | Confirmed at `d6c9a36`. |
+| Production deployment and live scan | Not completed or verified. |
+
+### VPS status and next session
+
+- The operator reported running `git fetch origin main` on the VPS, but no fetch output or subsequent checkout state was shared. Do not assume production is running `d6c9a36`. No database backup, fast-forward merge, image build, container restart, or post-deployment smoke check for this change was completed.
+- Direct SSH from this workspace remained blocked. The VPS recognized the existing `github_actions_key` public key, but its private key was not unlocked in the Windows SSH agent. The operator started the agent in an Administrator PowerShell window. The private key's Windows ACL was restricted to its owner, `ADMINISTRATOR\Dan`, after OpenSSH rejected the earlier broad permissions. A later agent check still showed no identities; a batch SSH check still failed. The operator was asked to run `ssh-add C:\Users\averi\.ssh\github_actions_key` and enter any passphrase locally, without sharing it in chat.
+- An incomplete temporary key pair created during an alternative access attempt was removed from the Windows temporary directory. No temporary public key was installed on the VPS.
+- Once SSH access works, inspect the VPS checkout and Compose state; make and verify a fresh database backup before the startup schema migration; fast-forward to `origin/main`; build and recreate backend/frontend; then check container logs, the public homepage, `/api/attendance/settings`, and actual site assignment and scan behavior. The operator ended work for the day before those steps.
+
+## Multi-site production deployment - 2026-10-03 (Asia/Manila)
+
+- Confirmed the VPS checkout was on `main` at `04667bb`, two commits behind `origin/main`; the existing untracked nested `jajr_facial_recognition/` folder was left untouched. Local verification passed: 15 backend tests, 9 frontend tests, frontend lint, and the production build. The known large admin-bundle warning remains.
+- Created `/root/jajr-backup-20261003-112651.sql.gz` before deployment using `mysqldump --no-tablespaces --single-transaction --quick`. The file was nonempty, passed `gzip -t`, and ended with MySQL's dump completion marker.
+- Fast-forwarded the VPS checkout to `d6c9a366cc0b54cc308f3c2948ccde408548a214`, built backend and frontend images, and recreated those two containers. MySQL and Redis remained running; all four containers were up afterward.
+- Read-only SQL confirmed active Main Office, PANICSICAN, and YARD sites with 100 m radii. The migration state was recorded, and all nine existing users had one initial Main Office assignment. There were no open site sessions at verification time.
+- The public homepage and `/api/attendance/settings` returned HTTP 200; unauthenticated `/api/admin/health` and `/api/admin/sites` returned HTTP 401 as expected. The deployed homepage referenced `index-CpcULOGm.js`. Backend logs showed Redis connected and face models ready. A later public check again returned HTTP 200 for the homepage and settings API.
+- A temporary SSH key was used for deployment, then removed from the VPS `authorized_keys` and deleted from Windows Temp. No production employee, attendance, admin, or settings record was changed for testing.
+- Remaining live validation: assign the appropriate employees to PANICSICAN or YARD in Settings, then verify real time-in and same-site time-out scans on a physical device. Camera permissions, location accuracy, scan latency, and wrong-site rejection were not tested in this deployment.
+
+## Main Office scan investigation and diagnostic release - 2026-10-03 (Asia/Manila)
+
+- The operator reported slow iPhone scans, unreliable recognition on a lower-spec Chrome phone, and Main Office boundary rejections despite being physically at Main Office. One Chrome attempt took about 4 seconds, and the operator confirmed Precise Location was enabled. The time-out rejection proves a face was matched and an open Main Office session was found; the failed condition was the reported phone location being outside the stored 100 m circle. The browser's actual coordinates and accuracy were not yet available, so a shifted site pin versus an inaccurate device fix remains unresolved.
+- Confirmed the stored production Main Office center was `16.61489773, 120.35392216` with a 100 m radius. A local rule check accepts these exact coordinates. Production geofencing was enabled. A blank-frame production probe took about 2.1 s end to end, including about 1.9 s in the server face step; this is not a real-face latency benchmark.
+- Fixed the kiosk retry after a boundary rejection so it asks the browser for a fresh location rather than reusing its cached point. Added a visible diagnostic with the server-measured site distance and radius, browser-reported accuracy, and expandable reported coordinates. The 100 m boundary and face-match threshold were not changed.
+- Backend tests passed (15), frontend tests passed (10, including a fresh-location retry check), frontend lint and production build passed, and the staged diff passed `git diff --check`. Committed and pushed `8826d71` (`Diagnose geofence rejections and refresh failed location fixes`).
+- Created and verified `/root/jajr-backup-20261003-141412.sql.gz`, fast-forwarded the VPS to `8826d71`, rebuilt and recreated backend/frontend, and confirmed all four containers running. Public homepage and attendance settings returned HTTP 200, unauthenticated admin health returned HTTP 401, and the homepage served `index-BD0b8OjV.js`. Backend logs showed Redis connected and face models ready. The temporary SSH key was removed from the VPS and Windows.
+- Next: refresh the kiosk on the affected phone, repeat the Main Office scan, and record the displayed distance, reported accuracy, and coordinates if rejected. Compare those readings with the stored site center before changing the pin or radius. Real-device recognition accuracy and iPhone scan latency remain unmeasured.

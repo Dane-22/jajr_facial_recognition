@@ -318,7 +318,7 @@ export default function CameraFeed({ onFaceDetected }) {
 
   return <div className="w-full max-w-2xl mx-auto">
     <div className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden">
-      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain -scale-x-100" />
       {status === 'active' && <div className="absolute inset-0 border-[3px] border-emerald-400/40 rounded-full m-[15%] pointer-events-none" />}
       {status === 'active' && scanPhase && <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-slate-950/85 px-3 py-2 text-sm font-semibold text-white shadow-lg" aria-live="off">
         <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden="true" />

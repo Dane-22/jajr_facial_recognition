@@ -23,19 +23,22 @@ test('camera starts automatically and stops when the kiosk view closes', async (
   Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
   vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+  const drawImage = vi.fn();
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-    drawImage: vi.fn(), getImageData: () => ({ data: new Uint8ClampedArray(32 * 24 * 4) })
+    drawImage, getImageData: () => ({ data: new Uint8ClampedArray(32 * 24 * 4) })
   });
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,abcd');
 
   const onFaceDetected = vi.fn();
   const view = render(<CameraFeed onFaceDetected={onFaceDetected} />);
   const video = view.container.querySelector('video');
+  expect(video.classList.contains('-scale-x-100')).toBe(true);
   Object.defineProperty(video, 'readyState', { configurable: true, get: () => 4 });
   Object.defineProperty(video, 'videoWidth', { configurable: true, get: () => 640 });
   Object.defineProperty(video, 'videoHeight', { configurable: true, get: () => 480 });
   await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/face/kiosk-attendance')).toBe(true));
+  expect(drawImage.mock.calls.some(([source]) => source === video)).toBe(true);
   await waitFor(() => expect(view.getByText('No face found.')).toBeTruthy());
   online = false;
   window.dispatchEvent(new Event('offline'));

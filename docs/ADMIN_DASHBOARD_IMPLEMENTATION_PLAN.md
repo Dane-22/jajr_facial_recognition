@@ -8,6 +8,7 @@ The local workspace now includes the daily Days Present field, a seven-day weekl
 
 Still open: a verified Asia/Manila timestamp migration, employee deactivation/archival rather than delete rejection, server-side Attendance Audit pagination and full export, full filtered Audit Logs export, staging mutation and role tests, independent production data reconciliation, and release verification.
 
+
 ## Phase 0 — Establish trustworthy baseline and protect history
 
 1. Preserve the signed-in Chrome observations in the review, then obtain read-only database query access or a sanitized reconciliation extract for independent count checks. Capture the deployed build hash, API response status, selected filters, and browser timezone for each section. Do not copy credentials or biometric payloads into reports.
