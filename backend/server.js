@@ -220,14 +220,11 @@ pool.ready.then(() => server.listen(PORT, async () => {
   loadModels().then(() => console.log('[FaceRecognition] Models ready')).catch(error => console.error('[FaceRecognition] Model preload failed:', error));
   // Attempt Redis connection — falls back to node-cache if unavailable
   await connectRedis();
-<<<<<<< HEAD
+  
+  // Start background Google Sheets sync
+  startSyncService();
 })).catch(async error => {
   console.error('Database migration failed; server was not started:', error);
   await pool.end().catch(() => {});
   process.exitCode = 1;
-=======
-  
-  // Start background Google Sheets sync
-  startSyncService();
->>>>>>> master
 });

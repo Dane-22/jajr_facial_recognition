@@ -318,13 +318,8 @@ const AttendanceAudit = () => {
 
     setIsExporting(true);
 
-<<<<<<< HEAD
     const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp', 'Site'];
-    const rows = filteredLogs.map(log => [
-=======
-    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp'];
     const rows = logsToExport.map(log => [
->>>>>>> master
       log.id,
       log.name,
       log.role,
