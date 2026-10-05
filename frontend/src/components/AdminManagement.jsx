@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import RecordCard from './UI/RecordCard';
 
 const API_URL = '/api';
 
@@ -227,7 +228,7 @@ const AdminManagement = () => {
   return (
     <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
       {/* Header Bar */}
-      <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="px-3 py-4 sm:px-6 sm:py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
             Admin Management
@@ -263,7 +264,7 @@ const AdminManagement = () => {
       )}
 
       {/* Filter / Search Controls */}
-      <div className="p-6 pb-2">
+      <div className="p-3 pb-2 sm:p-6 sm:pb-2">
         <div className="relative max-w-sm">
           <input
             type="text"
@@ -279,8 +280,30 @@ const AdminManagement = () => {
       </div>
 
       {/* Table Container */}
-      <div className="p-6 overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="min-w-0 p-3 sm:p-6">
+        <div className="space-y-3 md:hidden" data-testid="mobile-record-list">
+          {loading ? <p className="py-6 text-center text-sm text-slate-500">Loading administrator accounts...</p> : filteredAdmins.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No admin accounts found matching "{searchTerm}"</p> : filteredAdmins.map((admin) => (
+            <RecordCard
+              key={admin.id}
+              testId={`admin-card-${admin.id}`}
+              title={admin.username}
+              subtitle={currentUser?.id === admin.id ? 'Active account' : `Account #${admin.id}`}
+              badge={<span className={`rounded-lg border px-2 py-1 text-xs font-bold ${admin.position === 'Superadmin' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>Role: {admin.position || 'Admin'}</span>}
+              details={[
+                { label: 'Account ID', value: `#${admin.id}` },
+                { label: 'Created date', value: new Date(admin.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) },
+              ]}
+              actions={isSuperadmin ? <>
+                <button type="button" onClick={() => openEditModal(admin)} aria-label={`Edit ${admin.username}`} className="min-h-11 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Edit</button>
+                <button type="button" onClick={() => openDeleteModal(admin)} aria-label={`Delete ${admin.username}`} className="min-h-11 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">Delete</button>
+              </> : <span className="text-sm text-slate-500">Read-only</span>}
+            />
+          ))}
+        </div>
+        <div className="hidden md:block">
+        <p className="py-2 text-xs font-medium text-slate-500 sm:hidden" aria-hidden="true">Swipe table sideways to see all columns →</p>
+        <div className="table-scroll max-w-full overflow-x-auto overscroll-x-contain" role="region" aria-label="Scrollable administrator table" tabIndex={0}>
+        <table className="w-full min-w-max text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
               <th className="py-3 px-4">ID</th>
@@ -310,13 +333,13 @@ const AdminManagement = () => {
                 return (
                   <tr key={admin.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-400">#{admin.id}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
-                      {admin.username}
+                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                      <div className="flex items-center gap-2">{admin.username}
                       {isSelf && (
                         <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded-md font-bold border border-blue-200">
                           Active Account
                         </span>
-                      )}
+                      )}</div>
                     </td>
                     <td className="py-3.5 px-4">
                       {admin.position === 'Superadmin' ? (
@@ -360,6 +383,8 @@ const AdminManagement = () => {
             )}
           </tbody>
         </table>
+        </div>
+        </div>
       </div>
 
       {/* ─── MODAL 1: ADD NEW ADMIN ─────────────────────────────────────── */}

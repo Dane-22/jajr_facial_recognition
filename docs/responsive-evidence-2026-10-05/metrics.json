@@ -1,0 +1,1088 @@
+[
+  {
+    "label": "320",
+    "page": "dashboard",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 246,
+        "scrollWidth": 308
+      }
+    ],
+    "rows": [],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Dashboard\nLIVE · 6 today\n\nAttendance analytics and insights\n\nLast 7 Days\nLast 14 Days\nLast 30 Days\n\n",
+    "errors": []
+  },
+  {
+    "label": "320",
+    "page": "employees",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 270,
+        "scrollWidth": 601
+      }
+    ],
+    "rows": [
+      65,
+      65,
+      65,
+      65
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Employee Management\n\nCreate and manage employees. Records with attendance history cannot be deleted.",
+    "errors": []
+  },
+  {
+    "label": "320",
+    "page": "audit",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 270,
+        "scrollWidth": 894
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Attendance Audit\nInteractive Calendar Filter\n\nFilter attendance logs by clicking dates on the intera",
+    "errors": []
+  },
+  {
+    "label": "320",
+    "page": "logs",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 268,
+        "scrollWidth": 812
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "📋 Daily Attendance Logs\nReal-time Feed\n\nMonitor live employee check-in & check-out scans for select",
+    "errors": []
+  },
+  {
+    "label": "320",
+    "page": "reports",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 268,
+        "scrollWidth": 849
+      }
+    ],
+    "rows": [
+      46,
+      46,
+      46,
+      46
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "📄 Attendance Reports & Analytics\nExport Engine\n\nGenerate comprehensive daily, weekly, and monthly a",
+    "errors": []
+  },
+  {
+    "label": "320",
+    "page": "audit-logs",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 294,
+        "scrollWidth": 850
+      }
+    ],
+    "rows": [
+      45,
+      45,
+      45,
+      45
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Audit Logs\n\nView and track all system actions\n\nExport current page\n\nTOTAL LOGS\n\n411\n\nADMIN ACTIONS\n\n",
+    "errors": []
+  },
+  {
+    "label": "320",
+    "page": "admin-management",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 270,
+        "scrollWidth": 562
+      }
+    ],
+    "rows": [
+      55
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Admin Management\n\nManage administrative users, positions, and authentication credentials.\n\n➕\nRegiste",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "dashboard",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 286,
+        "scrollWidth": 308
+      }
+    ],
+    "rows": [],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "Dashboard\nLIVE · 6 today\n\nAttendance analytics and insights\n\nLast 7 Days\nLast 14 Days\nLast 30 Days\n\n",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "employees",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 310,
+        "scrollWidth": 601
+      }
+    ],
+    "rows": [
+      65,
+      65,
+      65,
+      65
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "Employee Management\n\nCreate and manage employees. Records with attendance history cannot be deleted.",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "audit",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 310,
+        "scrollWidth": 894
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "Attendance Audit\nInteractive Calendar Filter\n\nFilter attendance logs by clicking dates on the intera",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "logs",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 308,
+        "scrollWidth": 812
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "📋 Daily Attendance Logs\nReal-time Feed\n\nMonitor live employee check-in & check-out scans for select",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "reports",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 308,
+        "scrollWidth": 849
+      }
+    ],
+    "rows": [
+      46,
+      46,
+      46,
+      46
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "📄 Attendance Reports & Analytics\nExport Engine\n\nGenerate comprehensive daily, weekly, and monthly a",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "audit-logs",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 334,
+        "scrollWidth": 850
+      }
+    ],
+    "rows": [
+      45,
+      45,
+      45,
+      45
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "Audit Logs\n\nView and track all system actions\n\nExport current page\n\nTOTAL LOGS\n\n411\n\nADMIN ACTIONS\n\n",
+    "errors": []
+  },
+  {
+    "label": "360",
+    "page": "admin-management",
+    "viewport": 360,
+    "pageWidth": 360,
+    "mainWidth": 360,
+    "tables": [
+      {
+        "clientWidth": 310,
+        "scrollWidth": 562
+      }
+    ],
+    "rows": [
+      55
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 246,
+      "right": 304,
+      "bottom": 62
+    },
+    "text": "Admin Management\n\nManage administrative users, positions, and authentication credentials.\n\n➕\nRegiste",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "dashboard",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 316,
+        "scrollWidth": 316
+      }
+    ],
+    "rows": [],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "Dashboard\nLIVE · 6 today\n\nAttendance analytics and insights\n\nLast 7 Days\nLast 14 Days\nLast 30 Days\n\n",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "employees",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 340,
+        "scrollWidth": 601
+      }
+    ],
+    "rows": [
+      65,
+      65,
+      65,
+      65
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "Employee Management\n\nCreate and manage employees. Records with attendance history cannot be deleted.",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "audit",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 340,
+        "scrollWidth": 894
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "Attendance Audit\nInteractive Calendar Filter\n\nFilter attendance logs by clicking dates on the intera",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "logs",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 338,
+        "scrollWidth": 812
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "📋 Daily Attendance Logs\nReal-time Feed\n\nMonitor live employee check-in & check-out scans for select",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "reports",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 338,
+        "scrollWidth": 849
+      }
+    ],
+    "rows": [
+      46,
+      46,
+      46,
+      46
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "📄 Attendance Reports & Analytics\nExport Engine\n\nGenerate comprehensive daily, weekly, and monthly a",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "audit-logs",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 364,
+        "scrollWidth": 850
+      }
+    ],
+    "rows": [
+      45,
+      45,
+      45,
+      45
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "Audit Logs\n\nView and track all system actions\n\nExport current page\n\nTOTAL LOGS\n\n411\n\nADMIN ACTIONS\n\n",
+    "errors": []
+  },
+  {
+    "label": "390",
+    "page": "admin-management",
+    "viewport": 390,
+    "pageWidth": 390,
+    "mainWidth": 390,
+    "tables": [
+      {
+        "clientWidth": 340,
+        "scrollWidth": 562
+      }
+    ],
+    "rows": [
+      55
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 276,
+      "right": 334,
+      "bottom": 62
+    },
+    "text": "Admin Management\n\nManage administrative users, positions, and authentication credentials.\n\n➕\nRegiste",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "dashboard",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 356,
+        "scrollWidth": 356
+      }
+    ],
+    "rows": [],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "Dashboard\nLIVE · 6 today\n\nAttendance analytics and insights\n\nLast 7 Days\nLast 14 Days\nLast 30 Days\n\n",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "employees",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 380,
+        "scrollWidth": 601
+      }
+    ],
+    "rows": [
+      65,
+      65,
+      65,
+      65
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "Employee Management\n\nCreate and manage employees. Records with attendance history cannot be deleted.",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "audit",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 380,
+        "scrollWidth": 894
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "Attendance Audit\nInteractive Calendar Filter\n\nFilter attendance logs by clicking dates on the intera",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "logs",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 378,
+        "scrollWidth": 812
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "📋 Daily Attendance Logs\nReal-time Feed\n\nMonitor live employee check-in & check-out scans for select",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "reports",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 378,
+        "scrollWidth": 849
+      }
+    ],
+    "rows": [
+      46,
+      46,
+      46,
+      46
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "📄 Attendance Reports & Analytics\nExport Engine\n\nGenerate comprehensive daily, weekly, and monthly a",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "audit-logs",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 404,
+        "scrollWidth": 850
+      }
+    ],
+    "rows": [
+      45,
+      45,
+      45,
+      45
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "Audit Logs\n\nView and track all system actions\n\nExport current page\n\nTOTAL LOGS\n\n411\n\nADMIN ACTIONS\n\n",
+    "errors": []
+  },
+  {
+    "label": "430",
+    "page": "admin-management",
+    "viewport": 430,
+    "pageWidth": 430,
+    "mainWidth": 430,
+    "tables": [
+      {
+        "clientWidth": 380,
+        "scrollWidth": 562
+      }
+    ],
+    "rows": [
+      55
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 316,
+      "right": 374,
+      "bottom": 62
+    },
+    "text": "Admin Management\n\nManage administrative users, positions, and authentication credentials.\n\n➕\nRegiste",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "dashboard",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 246,
+        "scrollWidth": 308
+      }
+    ],
+    "rows": [],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Dashboard\nLIVE · 6 today\n\nAttendance analytics and insights\n\nLast 7 Days\nLast 14 Days\nLast 30 Days\n\n",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "employees",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 270,
+        "scrollWidth": 601
+      }
+    ],
+    "rows": [
+      65,
+      65,
+      65,
+      65
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Employee Management\n\nCreate and manage employees. Records with attendance history cannot be deleted.",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "audit",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 270,
+        "scrollWidth": 894
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Attendance Audit\nInteractive Calendar Filter\n\nFilter attendance logs by clicking dates on the intera",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "logs",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 268,
+        "scrollWidth": 812
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "📋 Daily Attendance Logs\nReal-time Feed\n\nMonitor live employee check-in & check-out scans for select",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "reports",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 268,
+        "scrollWidth": 849
+      }
+    ],
+    "rows": [
+      46,
+      46,
+      46,
+      46
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "📄 Attendance Reports & Analytics\nExport Engine\n\nGenerate comprehensive daily, weekly, and monthly a",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "audit-logs",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 294,
+        "scrollWidth": 850
+      }
+    ],
+    "rows": [
+      45,
+      45,
+      45,
+      45
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Audit Logs\n\nView and track all system actions\n\nExport current page\n\nTOTAL LOGS\n\n411\n\nADMIN ACTIONS\n\n",
+    "errors": []
+  },
+  {
+    "label": "short-320",
+    "page": "admin-management",
+    "viewport": 320,
+    "pageWidth": 320,
+    "mainWidth": 320,
+    "tables": [
+      {
+        "clientWidth": 270,
+        "scrollWidth": 562
+      }
+    ],
+    "rows": [
+      55
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 206,
+      "right": 264,
+      "bottom": 62
+    },
+    "text": "Admin Management\n\nManage administrative users, positions, and authentication credentials.\n\n➕\nRegiste",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "dashboard",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 121,
+        "scrollWidth": 308
+      }
+    ],
+    "rows": [],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 3035.5
+    },
+    "text": "Dashboard\nLIVE · 6 today\n\nAttendance analytics and insights\n\nLast 7 Days\nLast 14 Days\nLast 30 Days\n\n",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "employees",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 145,
+        "scrollWidth": 601
+      }
+    ],
+    "rows": [
+      65,
+      65,
+      65,
+      65
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 1439
+    },
+    "text": "Employee Management\n\nCreate and manage employees. Records with attendance history cannot be deleted.",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "audit",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 145,
+        "scrollWidth": 894
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 2017.5
+    },
+    "text": "Attendance Audit\nInteractive Calendar Filter\n\nFilter attendance logs by clicking dates on the intera",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "logs",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 143,
+        "scrollWidth": 812
+      }
+    ],
+    "rows": [
+      59,
+      59,
+      59,
+      59
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 1646.5
+    },
+    "text": "📋 Daily Attendance Logs\nReal-time Feed\n\nMonitor live employee check-in & check-out scans for select",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "reports",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 143,
+        "scrollWidth": 849
+      }
+    ],
+    "rows": [
+      46,
+      46,
+      46,
+      46
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 1734
+    },
+    "text": "📄 Attendance Reports & Analytics\nExport Engine\n\nGenerate comprehensive daily, weekly, and monthly a",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "audit-logs",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 169,
+        "scrollWidth": 850
+      }
+    ],
+    "rows": [
+      45,
+      45,
+      45,
+      45
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 1674
+    },
+    "text": "Audit Logs\n\nView and track all system actions\n\nExport current page\n\nTOTAL LOGS\n\n411\n\nADMIN ACTIONS\n\n",
+    "errors": []
+  },
+  {
+    "label": "zoom-200-effective-390",
+    "page": "admin-management",
+    "viewport": 195,
+    "pageWidth": 195,
+    "mainWidth": 195,
+    "tables": [
+      {
+        "clientWidth": 145,
+        "scrollWidth": 562
+      }
+    ],
+    "rows": [
+      55
+    ],
+    "overflowing": [],
+    "chat": {
+      "left": 129,
+      "right": 187,
+      "bottom": 630.5
+    },
+    "text": "Admin Management\n\nManage administrative users, positions, and authentication credentials.\n\n➕\nRegiste",
+    "errors": []
+  }
+]

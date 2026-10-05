@@ -1,0 +1,56 @@
+[
+  {
+    "label": "320",
+    "width": 320,
+    "height": 640,
+    "pageWidth": 320,
+    "viewportWidth": 320,
+    "cards": 2,
+    "actionVisible": true
+  },
+  {
+    "label": "360",
+    "width": 360,
+    "height": 740,
+    "pageWidth": 360,
+    "viewportWidth": 360,
+    "cards": 2,
+    "actionVisible": true
+  },
+  {
+    "label": "390",
+    "width": 390,
+    "height": 844,
+    "pageWidth": 390,
+    "viewportWidth": 390,
+    "cards": 2,
+    "actionVisible": true
+  },
+  {
+    "label": "430",
+    "width": 430,
+    "height": 932,
+    "pageWidth": 430,
+    "viewportWidth": 430,
+    "cards": 2,
+    "actionVisible": true
+  },
+  {
+    "label": "short-320",
+    "width": 320,
+    "height": 500,
+    "pageWidth": 320,
+    "viewportWidth": 320,
+    "cards": 2,
+    "actionVisible": true
+  },
+  {
+    "label": "zoom-200-effective-195",
+    "width": 195,
+    "height": 422,
+    "pageWidth": 195,
+    "viewportWidth": 195,
+    "cards": 2,
+    "actionVisible": true
+  }
+]

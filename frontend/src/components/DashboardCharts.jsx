@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
 import useSocket from '../hooks/useSocket';
+import RecordCard from './UI/RecordCard';
 
 const API_URL = '/api';
 
@@ -32,16 +33,16 @@ const THEMES = {
 
 const StatCard = ({ label, value, sub, color, icon, live, t }) => (
   <div style={{ background: t.card, borderColor: t.cardBorder }}
-    className="flex items-center gap-4 p-5 rounded-2xl border transition-all duration-300 hover:shadow-md">
-    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+    className="flex min-w-0 items-start gap-3 rounded-2xl border p-4 transition-all duration-300 hover:shadow-md sm:gap-4 sm:p-5">
+    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
       {icon}
     </div>
-    <div className="min-w-0">
-      <p style={{ color: t.subtext }} className="text-xs font-semibold uppercase tracking-wider truncate">{label}</p>
-      <div className="flex items-end gap-2">
+    <div className="min-w-0 flex-1">
+      <p style={{ color: t.subtext }} className="text-xs font-semibold uppercase tracking-wider leading-snug break-words">{label}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <p style={{ color: t.text }} className="text-3xl font-bold leading-none mt-1">{value ?? '—'}</p>
         {live && (
-          <span className="mb-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700">
+          <span className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700">
             <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />LIVE
           </span>
         )}
@@ -60,7 +61,7 @@ const ChartCard = ({ title, children, t, span = 1 }) => (
   </div>
 );
 
-const DateAuditModal = ({ isOpen, onClose, date, t }) => {
+const DateAuditModal = ({ isOpen, onClose, date, t, dark }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -115,7 +116,24 @@ const DateAuditModal = ({ isOpen, onClose, date, t }) => {
           ) : logs.length === 0 ? (
              <div style={{ color: t.muted }} className="text-center p-8 text-sm">No attendance logs found for this date.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 md:hidden" data-testid="mobile-record-list">
+              {logs.map((log) => (
+                <RecordCard
+                  key={log.id}
+                  testId={`dashboard-attendance-card-${log.id}`}
+                  dark={dark}
+                  title={log.name}
+                  subtitle={`Attendance #${log.id}`}
+                  badge={<span className={`rounded-full px-2.5 py-1 text-xs font-bold ${log.status === 'IN' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{log.status}</span>}
+                  fields={[
+                    { label: 'Role', value: log.role || 'Staff' },
+                    { label: 'Time', value: new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+                  ]}
+                />
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead>
                   <tr style={{ color: t.subtext, borderBottomColor: t.border }} className="border-b">
@@ -141,6 +159,7 @@ const DateAuditModal = ({ isOpen, onClose, date, t }) => {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -217,17 +236,17 @@ const ActivityCalendar = ({ t, onDateClick }) => {
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div style={{ background: t.card, borderColor: t.cardBorder }} className="rounded-2xl border p-6 shadow-sm">
+    <div style={{ background: t.card, borderColor: t.cardBorder }} className="min-w-0 rounded-2xl border p-3 sm:p-6 shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 sm:mb-8">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <h3 style={{ color: t.text }} className="text-xl font-bold">{monthName} {year}</h3>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             Activity indicator active
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
@@ -241,7 +260,9 @@ const ActivityCalendar = ({ t, onDateClick }) => {
       </div>
 
       {/* Calendar Grid */}
-      <div className="w-full">
+      <p className="mb-2 text-xs font-medium text-slate-500 sm:hidden" aria-hidden="true">Swipe calendar sideways to see all days →</p>
+      <div className="table-scroll w-full overflow-x-auto overscroll-x-contain" role="region" aria-label="Scrollable dashboard calendar" tabIndex={0}>
+        <div className="min-w-[308px]">
         {/* Weekdays */}
         <div className="grid grid-cols-7 mb-6">
           {weekdays.map(d => (
@@ -273,6 +294,7 @@ const ActivityCalendar = ({ t, onDateClick }) => {
               )}
             </div>
           ))}
+        </div>
         </div>
       </div>
 
@@ -394,9 +416,9 @@ const DashboardCharts = () => {
     <div style={{ background: t.bg, color: t.text }} className="w-full h-full flex flex-col overflow-hidden transition-colors duration-300">
 
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <div style={{ borderColor: t.border }} className="px-6 py-4 border-b flex flex-wrap items-center justify-between gap-3">
+      <div style={{ borderColor: t.border }} className="px-3 py-4 sm:px-6 border-b flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 style={{ color: t.text }} className="text-lg font-bold">Dashboard</h2>
             {isLoggedIn && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700 border border-green-200">
@@ -408,7 +430,7 @@ const DashboardCharts = () => {
           <p style={{ color: t.subtext }} className="text-xs mt-0.5">Attendance analytics and insights</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Dark mode toggle */}
           <button
             onClick={() => setDarkMode(d => !d)}
@@ -451,7 +473,7 @@ const DashboardCharts = () => {
       </div>
 
       {/* ── Scrollable body ───────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      <div className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-5 space-y-4 sm:space-y-6">
 
         {/* Live activity toast */}
         {lastActivity && (
@@ -470,7 +492,7 @@ const DashboardCharts = () => {
 
         {/* Stat cards */}
         {data?.summary && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
             <StatCard t={t}
               label="Total Employees"
               value={data.summary.total_employees}
@@ -583,6 +605,7 @@ const DashboardCharts = () => {
         onClose={() => setAuditModalOpen(false)} 
         date={selectedAuditDate} 
         t={t} 
+        dark={darkMode}
       />
     </div>
   );

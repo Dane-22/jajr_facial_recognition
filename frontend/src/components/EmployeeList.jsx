@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
+import RecordCard from './UI/RecordCard';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -346,14 +347,14 @@ const EmployeeList = () => {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+      <div className="mb-5 sm:mb-8">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 mb-1">Employee Management</h2>
               <p className="text-slate-500 text-sm">Create and manage employees. Records with attendance history cannot be deleted.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 w-full flex-wrap items-center gap-3 sm:w-auto">
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
@@ -362,14 +363,14 @@ const EmployeeList = () => {
                 </svg>
                 Filters
               </button>
-              <div className="relative">
+              <div className="relative min-w-0 w-full sm:w-64">
                 <input
                   type="text"
                   data-testid="employee-search-input"
                   placeholder="Search employees..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-10 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all duration-200 w-64"
+                  className="w-full min-w-0 pl-10 pr-10 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all duration-200"
                 />
                 <svg className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -402,7 +403,7 @@ const EmployeeList = () => {
 
       {/* Advanced Filters Panel */}
       {showFilters && (
-        <div className="mb-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="mb-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
           <div className="flex flex-col md:flex-row md:items-end gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-2">Role</label>
@@ -468,8 +469,8 @@ const EmployeeList = () => {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-5 sm:mb-8">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm mb-1 font-medium">Total Employees</p>
@@ -483,7 +484,7 @@ const EmployeeList = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm mb-1 font-medium">Roles</p>
@@ -509,11 +510,11 @@ const EmployeeList = () => {
 
       {/* Employees Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-4 sm:p-6 border-b border-slate-200">
           <h3 className="text-lg font-semibold text-slate-900">All Employees</h3>
         </div>
 
-        <div className="px-6 py-6">
+        <div className="px-3 py-3 sm:px-6 sm:py-6">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full">
               <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
@@ -530,8 +531,27 @@ const EmployeeList = () => {
               <p className="text-slate-500 text-sm mt-1">Click &quot;Add Employee&quot; to create one</p>
             </div>
           ) : (
-            <div className="overflow-x-auto min-h-[18rem]">
-              <table className="w-full" data-testid="employee-table">
+            <>
+            <div className="space-y-3 md:hidden" data-testid="mobile-record-list">
+              {currentEmployees.map((employee) => (
+                <RecordCard
+                  key={employee.id}
+                  testId={`employee-card-${employee.id}`}
+                  title={employee.name}
+                  subtitle={`Employee #${employee.id}`}
+                  badge={<span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">Role: {employee.role || 'Staff'}</span>}
+                  details={[{ label: 'Created at', value: formatDate(employee.created_at) }]}
+                  actions={<>
+                    <button type="button" onClick={() => handleEdit(employee)} aria-label={`Edit ${employee.name}`} className="min-h-11 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Edit</button>
+                    <button type="button" onClick={() => handleDelete(employee.id)} aria-label={`Delete ${employee.name}`} className="min-h-11 rounded-lg bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">Delete</button>
+                  </>}
+                />
+              ))}
+            </div>
+            <div className="hidden min-w-0 max-w-full md:block">
+              <p className="border-b border-slate-100 px-2 py-2 text-xs font-medium text-slate-500 sm:hidden" aria-hidden="true">Swipe table sideways to see all columns →</p>
+              <div className="table-scroll max-w-full overflow-x-auto overscroll-x-contain" role="region" aria-label="Scrollable employee table" tabIndex={0}>
+              <table className="w-full min-w-max" data-testid="employee-table">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -594,13 +614,15 @@ const EmployeeList = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
+            </>
           )}
         </div>
 
         {/* Pagination Bar */}
         {employees.length > 0 && (
-          <div className="px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
+          <div className="px-3 py-4 sm:px-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
               <span>
                 Showing <span className="font-semibold text-slate-900">{indexOfFirstItem + 1}</span> to{' '}

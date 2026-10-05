@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Table from './UI/Table';
+import RecordCard from './UI/RecordCard';
 import { serializeCsv } from '../utils/csv';
 
 const API_URL = '/api';
@@ -222,7 +223,7 @@ const AuditLogs = () => {
   return (
     <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm">
       {/* Header */}
-      <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-0 p-0">
+      <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 mb-1">Audit Logs</h2>
           <p className="text-slate-500 text-xs">View and track all system actions</p>
@@ -241,14 +242,14 @@ const AuditLogs = () => {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="w-full grid grid-cols-4 divide-x divide-slate-150 border-b border-slate-150 m-0 p-0">
-          <div className="flex items-center justify-center gap-3 px-4 py-4">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 border-b border-slate-150 m-0 p-0">
+          <div className="min-w-0 border-b border-slate-100 px-4 py-4 sm:border-r xl:border-b-0">
             <div className="text-left">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Logs</p>
               <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-3 px-4 py-4">
+          <div className="min-w-0 border-b border-slate-100 px-4 py-4 xl:border-b-0 xl:border-r">
             <div className="text-left">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Admin Actions</p>
               <p className="text-2xl font-bold text-slate-900">
@@ -256,7 +257,7 @@ const AuditLogs = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-3 px-4 py-4">
+          <div className="min-w-0 border-b border-slate-100 px-4 py-4 sm:border-b-0 sm:border-r">
             <div className="text-left">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Employee Actions</p>
               <p className="text-2xl font-bold text-slate-900">
@@ -264,10 +265,10 @@ const AuditLogs = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-3 px-4 py-4">
+          <div className="min-w-0 px-4 py-4">
             <div className="text-left">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Most Common Action</p>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="break-all text-xl font-bold text-slate-900 sm:text-2xl">
                 {stats.byAction?.[0]?.action || '-'}
               </p>
             </div>
@@ -311,7 +312,7 @@ const AuditLogs = () => {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"
+            className="min-w-0 max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"
           />
           <input
             type="date"
@@ -368,6 +369,23 @@ const AuditLogs = () => {
               <Table
                 columns={tableColumns}
                 data={logs}
+                mobileCard={(log) => (
+                  <RecordCard
+                    testId={`audit-log-card-${log.id}`}
+                    title={log.user_name || 'Unknown user'}
+                    subtitle={`Event #${log.id}`}
+                    badge={<span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getActionBadgeColor(log.action)}`}>{log.action}</span>}
+                    fields={[
+                      { label: 'Timestamp', value: formatTimestamp(log.timestamp) },
+                      { label: 'User type', value: log.user_type || '—' },
+                    ]}
+                    details={[
+                      { label: 'Entity type', value: log.entity_type || '—' },
+                      { label: 'Entity ID', value: log.entity_id ?? '—' },
+                      { label: 'IP address', value: log.ip_address || '—' },
+                    ]}
+                  />
+                )}
                 emptyMessage="No audit logs found"
                 emptyIcon={emptyIcon} />
             </div>
@@ -404,7 +422,7 @@ const AuditLogs = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}

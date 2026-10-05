@@ -1,6 +1,7 @@
 import React from 'react';
+import TableScroll from './TableScroll';
 
-const Table = ({ columns, data, emptyMessage, emptyIcon }) => {
+const Table = ({ columns, data, emptyMessage, emptyIcon, mobileCard }) => {
   const getStatusBadge = (status) => {
     if (status === 'IN') {
       return (
@@ -30,14 +31,16 @@ const Table = ({ columns, data, emptyMessage, emptyIcon }) => {
   }
 
   return (
-    <div className="h-full overflow-x-auto w-full">
-      <table className="w-full">
+    <>
+    {mobileCard && <div className="space-y-3 p-3 md:hidden" data-testid="mobile-record-list">{data.map((row, index) => <React.Fragment key={row.id ?? index}>{mobileCard(row, index)}</React.Fragment>)}</div>}
+    <TableScroll className={mobileCard ? 'hidden md:block' : ''}>
+      <table className="w-full min-w-max">
         <thead>
           <tr className="border-b border-slate-100">
             {columns.map((column, index) => (
               <th
                 key={index}
-                className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider"
+                className="px-3 sm:px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider"
               >
                 {column.header}
               </th>
@@ -50,7 +53,7 @@ const Table = ({ columns, data, emptyMessage, emptyIcon }) => {
               {columns.map((column, colIndex) => (
                 <td
                   key={colIndex}
-                  className="px-5 py-3 whitespace-nowrap text-sm text-slate-700"
+                  className="px-3 sm:px-5 py-3 whitespace-nowrap text-sm text-slate-700"
                 >
                   {column.key === 'status' ? (
                     getStatusBadge(row[column.key])
@@ -65,7 +68,8 @@ const Table = ({ columns, data, emptyMessage, emptyIcon }) => {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
+    </>
   );
 };
 

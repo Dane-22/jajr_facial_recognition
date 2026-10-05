@@ -15,3 +15,40 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+.table-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.table-scroll::-webkit-scrollbar {
+  height: 9px;
+}
+
+.table-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}
+
+@media (max-width: 240px) {
+  .admin-shell {
+    flex-direction: column;
+  }
+
+  .admin-shell main {
+    padding-bottom: 0.75rem;
+  }
+
+  .mobile-header-spacer {
+    height: 7rem;
+  }
+
+  .chat-trigger {
+    position: static;
+    margin: 0.5rem 0.5rem 0.75rem auto;
+  }
+}

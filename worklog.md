@@ -1,6 +1,6 @@
 # Worklog — 2026-09-29 (Asia/Manila)
 
-## Current status — 2026-10-03 (Asia/Manila)
+## Current status — 2026-10-05 (Asia/Manila)
 
 This worklog is chronological. Earlier statements such as “not deployed” describe the state at that time; the latest status is below.
 
@@ -13,6 +13,7 @@ This worklog is chronological. Earlier statements such as “not deployed” des
 | Production secrets | The operator added generated `JWT_SECRET` and `KIOSK_API_KEY` values and recreated the backend; masked checks showed both loaded. Existing admin sessions need a fresh sign-in. |
 | Scanner timer | Commit `04667bb` was deployed before the multi-site update. An actual on-device timed scan has not yet been observed. |
 | Multi-site geofencing | Commit `d6c9a36` is deployed on the production VPS. A verified backup preceded the migration; the three sites and nine initial Main Office assignments were confirmed. A Main Office scan matched the employee but was rejected by the location boundary; diagnostic update `8826d71` is deployed to measure the phone's reported distance and accuracy. |
+| Mirrored web camera | Commit `58ebc5a` is deployed on the production VPS. The kiosk and enrollment previews are mirrored for display; recognition frames remain unflipped. Only the frontend container was rebuilt. Public homepage, API, and new assets returned HTTP 200. Live visual camera verification is still pending. |
 
 Open work remains in the admin implementation plan: timestamp/timezone reconciliation, employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
 
@@ -261,3 +262,20 @@ The user's screenshot additions and earlier screenshot deletions were left untou
 - Backend tests passed (15), frontend tests passed (10, including a fresh-location retry check), frontend lint and production build passed, and the staged diff passed `git diff --check`. Committed and pushed `8826d71` (`Diagnose geofence rejections and refresh failed location fixes`).
 - Created and verified `/root/jajr-backup-20261003-141412.sql.gz`, fast-forwarded the VPS to `8826d71`, rebuilt and recreated backend/frontend, and confirmed all four containers running. Public homepage and attendance settings returned HTTP 200, unauthenticated admin health returned HTTP 401, and the homepage served `index-BD0b8OjV.js`. Backend logs showed Redis connected and face models ready. The temporary SSH key was removed from the VPS and Windows.
 - Next: refresh the kiosk on the affected phone, repeat the Main Office scan, and record the displayed distance, reported accuracy, and coordinates if rejected. Compare those readings with the stored site center before changing the pin or radius. Real-device recognition accuracy and iPhone scan latency remain unmeasured.
+
+## Mirrored camera and frontend deployment - 2026-10-05 (Asia/Manila)
+
+- Reviewed kiosk, employee enrollment, mobile capture, and server recognition paths. The web previews had no application-level mirror. Added `docs/FACE_RECOGNITION_CAMERA_MIRRORING.md` and linked it from `docs/README.md`.
+- Mirrored the web kiosk video and the employee enrollment video plus face-box overlay with CSS. The kiosk still uploads frames from the original video source, and enrollment still extracts descriptors from the original video. Mobile camera behavior was not changed.
+- The focused `CameraFeed.test.jsx` suite passed (2 tests), and the frontend production build passed locally. Commit `58ebc5a` (`mirrored camera`) was pushed to GitHub by the operator.
+- Inspected the VPS at `8826d71` with all four Compose services running. The existing untracked nested `jajr_facial_recognition/` directory was left untouched. An initial SQL dump printed a MySQL `PROCESS` privilege error, so it was not used as the deployment backup. A second dump using `--no-tablespaces --single-transaction --quick` completed at `/root/jajr-backup-20261005-090021.sql` (197 KB, completion marker present).
+- Fast-forwarded the VPS checkout to `58ebc5a`, built the frontend image, and recreated only the frontend container with `--no-deps`. Backend, MySQL, and Redis containers were not restarted. The public homepage, `/api/attendance/settings`, new CSS, and new kiosk JavaScript returned HTTP 200; the deployed CSS contained the mirror class. No live visual camera test was performed.
+- GitHub `origin/main` was at `d19ec5f`, four commits ahead of the deployed checkout. Those commits include Google Sheets synchronization code; the verified live database backup did not contain its `google_sheets_synced` column. The newer backend commits and their schema migration were not deployed. Review and back up the database before that separate release.
+- Removed the one-time SSH key from VPS `authorized_keys` and Windows Temp. Also removed the two mistakenly created key files from `/root`. The pre-existing untracked nested directory remains untouched.
+
+## Superadmin manual attendance - 2026-10-05 (Asia/Manila)
+
+- Implemented the approved Superadmin-only Manual Attendance page with one employee card per mobile record. It supports single time-in/time-out and a 30-day historical paired correction, requires an assigned site and reason, and uses Asia/Manila input/display.
+- Added database-backed Superadmin authorization, employee/session context APIs, atomic attendance writes, manual provenance metadata, effective and creation timestamps, audit events, and scanner-compatible session locking. Existing Settings time-out correction now links to the shared page/service.
+- Updated daily logs and attendance audit views/exports to identify manual records and show their source, creator, reason, and creation time. Reports and date filtering now use Asia/Manila day boundaries.
+- Verification passed: frontend lint, frontend build, 10 frontend tests, 15 existing backend tests, four focused manual attendance tests, and backend syntax checks. Mobile screenshots at 320, 360, 390, 430 px, a short 320 px screen, and a 200% zoom layout equivalent are in `docs/manual-attendance-evidence-2026-10-05/`; each showed one card per employee with no page overflow. Live database migration and a real attendance write remain unverified. No production deployment was performed.

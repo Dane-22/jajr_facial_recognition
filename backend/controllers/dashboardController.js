@@ -1,23 +1,25 @@
 const pool = require('../config/db');
+const manilaToday = 'DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))';
+const manilaTime = expression => `DATE_ADD(${expression}, INTERVAL 8 HOUR)`;
 
 const getDashboardStats = async (req, res) => {
   try {
     const requestedDays = Number(req.query.days);
     const days = [7, 14, 30].includes(requestedDays) ? requestedDays : 7;
-    const [dateRows] = await pool.query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today");
+    const [dateRows] = await pool.query(`SELECT DATE_FORMAT(${manilaToday}, '%Y-%m-%d') AS today`);
     const today = dateRows[0].today;
 
     // 1. Attendance trends (line chart - last N days)
     const [trendData] = await pool.query(`
       SELECT 
-        DATE_FORMAT(timestamp, '%Y-%m-%d') as date,
+        DATE_FORMAT(${manilaTime('timestamp')}, '%Y-%m-%d') as date,
         COUNT(CASE WHEN status = 'IN' THEN 1 END) as check_ins,
         COUNT(CASE WHEN status = 'OUT' THEN 1 END) as check_outs,
         COUNT(DISTINCT user_id) as unique_employees
       FROM attendance_logs
-      WHERE timestamp >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-        AND timestamp < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-      GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d')
+      WHERE ${manilaTime('timestamp')} >= DATE_SUB(${manilaToday}, INTERVAL ? DAY)
+        AND ${manilaTime('timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
+      GROUP BY DATE_FORMAT(${manilaTime('timestamp')}, '%Y-%m-%d')
       ORDER BY date ASC
     `, [days - 1]);
 
@@ -39,16 +41,16 @@ const getDashboardStats = async (req, res) => {
         CASE WHEN current_status.status = 'IN' THEN 1 ELSE 0 END as checked_in_today
       FROM users u
       LEFT JOIN attendance_logs al ON u.id = al.user_id
-        AND al.timestamp >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-        AND al.timestamp < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        AND ${manilaTime('al.timestamp')} >= DATE_SUB(${manilaToday}, INTERVAL ? DAY)
+        AND ${manilaTime('al.timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
       LEFT JOIN (
         SELECT user_id, status FROM (
           SELECT user_id, status, ROW_NUMBER() OVER (
             PARTITION BY user_id ORDER BY timestamp DESC, id DESC
           ) AS row_num
           FROM attendance_logs
-          WHERE timestamp >= CURDATE()
-            AND timestamp < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          WHERE ${manilaTime('timestamp')} >= ${manilaToday}
+            AND ${manilaTime('timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
         ) ranked WHERE row_num = 1
       ) current_status ON current_status.user_id = u.id
       GROUP BY u.id, u.name, current_status.status
@@ -66,8 +68,8 @@ const getDashboardStats = async (req, res) => {
           PARTITION BY user_id ORDER BY timestamp DESC, id DESC
         ) AS row_num
         FROM attendance_logs
-        WHERE timestamp >= CURDATE()
-          AND timestamp < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+        WHERE ${manilaTime('timestamp')} >= ${manilaToday}
+          AND ${manilaTime('timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
       ) latest
       WHERE row_num = 1
     `);
@@ -81,12 +83,12 @@ const getDashboardStats = async (req, res) => {
     // 4. Heat map data (time-based patterns - hourly check-ins for last 7 days)
     const [heatMapData] = await pool.query(`
       SELECT 
-        DAYOFWEEK(timestamp) as day_num,
-        HOUR(timestamp) as hour,
+        DAYOFWEEK(${manilaTime('timestamp')}) as day_num,
+        HOUR(${manilaTime('timestamp')}) as hour,
         COUNT(CASE WHEN status = 'IN' THEN 1 END) as check_ins
       FROM attendance_logs
-      WHERE timestamp >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-      GROUP BY DAYOFWEEK(timestamp), HOUR(timestamp)
+      WHERE ${manilaTime('timestamp')} >= DATE_SUB(${manilaToday}, INTERVAL 7 DAY)
+      GROUP BY DAYOFWEEK(${manilaTime('timestamp')}), HOUR(${manilaTime('timestamp')})
       ORDER BY day_num, hour
     `);
 
@@ -102,9 +104,9 @@ const getDashboardStats = async (req, res) => {
       SELECT 
         COUNT(CASE WHEN status = 'IN' THEN 1 END) as today_check_ins,
         COUNT(CASE WHEN status = 'OUT' THEN 1 END) as today_check_outs,
-        COUNT(CASE WHEN DATE(timestamp) = CURDATE() THEN 1 END) as today_total
+        COUNT(CASE WHEN DATE(${manilaTime('timestamp')}) = ${manilaToday} THEN 1 END) as today_total
       FROM attendance_logs
-      WHERE DATE(timestamp) = CURDATE()
+      WHERE DATE(${manilaTime('timestamp')}) = ${manilaToday}
     `);
 
     res.status(200).json({

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useSocket from '../hooks/useSocket';
 import Table from './UI/Table';
+import LocationMapCell from './UI/LocationMapCell';
+import RecordCard from './UI/RecordCard';
 import { serializeCsv } from '../utils/csv';
+import { formatAttendanceTime, attendanceDate } from '../utils/attendanceTime';
 
 const API_URL = '/api';
 
 const DailyLogs = () => {
   const [logs, setLogs] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(attendanceDate(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [employees, setEmployees] = useState([]);
@@ -33,10 +36,10 @@ const DailyLogs = () => {
 
   // ── Real-time updates via Socket.IO ──────────────────────────────────────
   const isLoggedIn = !!localStorage.getItem('admin_token');
-  const today = new Date().toISOString().split('T')[0];
+  const today = attendanceDate(new Date());
 
   const handleNewAttendance = useCallback((data) => {
-    if (selectedDate !== today) return;
+    if (selectedDate !== attendanceDate(data.timestamp)) return;
     if (selectedEmployee && String(data.user_id) !== String(selectedEmployee)) return;
     if (statusFilter && data.status !== statusFilter) return;
 
@@ -114,17 +117,7 @@ const DailyLogs = () => {
     }
   };
 
-  const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
+  const formatTimestamp = formatAttendanceTime;
 
   const clearFilters = () => {
     setSelectedEmployee('');
@@ -140,14 +133,15 @@ const DailyLogs = () => {
     setIsExporting(true);
     setTimeout(() => setIsExporting(false), 2000);
 
-    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp', 'Site'];
+    const headers = ['ID', 'Name', 'Role', 'Status', 'Effective Time (Asia/Manila)', 'Site', 'Source', 'Created (Asia/Manila)', 'Created By', 'Reason'];
     const rows = logs.map(log => [
       log.id,
       log.name,
       log.role,
       log.status,
       formatTimestamp(log.timestamp),
-      log.site_name || ''
+      log.site_name || '', log.source || 'scanner', formatTimestamp(log.created_at),
+      log.created_by || '', log.reason || ''
     ]);
     const csvContent = serializeCsv([headers, ...rows]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -204,7 +198,7 @@ const DailyLogs = () => {
       )
     },
     {
-      header: 'Scan Timestamp',
+      header: 'Effective Time (Asia/Manila)',
       key: 'timestamp',
       render: (value) => (
         <span className="text-slate-600 text-xs font-medium">
@@ -217,6 +211,10 @@ const DailyLogs = () => {
       key: 'site_name',
       render: value => <span className="text-xs font-semibold text-slate-700">{value || 'Historical'}</span>
     },
+    { header: 'Source', key: 'source', render: value => <span className="text-xs font-semibold">{value === 'manual' ? 'Manual' : 'Scanner'}</span> },
+    { header: 'Manual Details', key: 'reason', render: (value, log) => log?.source === 'manual'
+      ? <details className="text-xs"><summary>Details</summary><span>Created: {formatTimestamp(log.created_at)}<br />By: {log.created_by}<br />Reason: {value}</span></details>
+      : <span className="text-xs text-slate-500">—</span> },
     {
       header: 'Location',
       key: 'latitude', // Using latitude as key, but we access the full object in render if needed. Wait, Table component passes just the value or full object?
@@ -224,19 +222,7 @@ const DailyLogs = () => {
       // If it only passes value, we need both latitude and longitude. I will pass the whole log object if possible, but standard is value.
       // Let's use `render: (value, log)` since most custom Tables pass `(value, row)`.
       render: (value, log) => {
-        if (!log || !log.latitude || !log.longitude) return <span className="text-slate-400 italic text-xs">No location data</span>;
-        return (
-          <iframe 
-            width="200" 
-            height="120" 
-            frameBorder="0" 
-            scrolling="no" 
-            marginHeight="0" 
-            marginWidth="0" 
-            src={`https://maps.google.com/maps?q=${log.latitude},${log.longitude}&hl=en&z=17&output=embed`}
-            className="rounded-lg border border-slate-200"
-          ></iframe>
-        );
+        return <LocationMapCell latitude={log?.latitude} longitude={log?.longitude} />;
       }
     }
   ];
@@ -248,11 +234,11 @@ const DailyLogs = () => {
   const currentLogs = logs.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden space-y-6 p-6">
+    <div className="w-full min-w-0 bg-white rounded-xl border border-slate-100 shadow-sm space-y-4 p-3 sm:space-y-6 sm:p-6">
       {/* Page Title & Live Sync Status */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900 mb-1 flex flex-wrap items-center gap-2">
             📋 Daily Attendance Logs
             <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium border border-slate-200">
               Real-time Feed
@@ -261,7 +247,7 @@ const DailyLogs = () => {
           <p className="text-slate-500 text-xs">Monitor live employee check-in & check-out scans for selected dates.</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-semibold text-emerald-800">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             Socket.IO Active {liveCount > 0 && `(+${liveCount} live)`}
@@ -312,25 +298,25 @@ const DailyLogs = () => {
       {/* Filter Control Bar */}
       <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 w-full flex-wrap items-center gap-3 sm:w-auto">
             {/* Date Selector */}
-            <div>
+            <div className="min-w-0 max-w-full">
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Target Date</label>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
             </div>
 
             {/* Employee Filter */}
-            <div>
+            <div className="min-w-0 max-w-full">
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter Employee</label>
               <select
                 value={selectedEmployee}
                 onChange={(e) => setSelectedEmployee(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                className="max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
                 <option value="">All Employees</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
@@ -341,12 +327,12 @@ const DailyLogs = () => {
             </div>
 
             {/* Status Filter */}
-            <div>
+            <div className="min-w-0 max-w-full">
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Type</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                className="max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
                 <option value="">All Statuses</option>
                 <option value="IN">IN Only 🟢</option>
                 <option value="OUT">OUT Only 🔴</option>
@@ -394,7 +380,7 @@ const DailyLogs = () => {
       )}
 
       {/* Main Table Area */}
-      <div className="border border-slate-100 rounded-2xl overflow-hidden">
+      <div className="min-w-0 border border-slate-100 rounded-2xl">
         {loading ? (
           <div className="py-12 flex items-center justify-center gap-3">
             <div className="w-8 h-8 border-3 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
@@ -404,6 +390,28 @@ const DailyLogs = () => {
           <Table
             columns={tableColumns}
             data={currentLogs}
+            mobileCard={(log) => (
+              <RecordCard
+                testId={`daily-log-card-${log.id}`}
+                title={log.name}
+                subtitle={`Attendance #${log.id}`}
+                badge={<span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${log.status === 'IN' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{log.status === 'IN' ? 'Check IN' : 'Check OUT'}</span>}
+                fields={[
+                  { label: 'Effective time', value: formatTimestamp(log.timestamp) },
+                  { label: 'Role / Position', value: log.role || 'Staff' },
+                  { label: 'Source', value: log.source === 'manual' ? 'Manual' : 'Scanner' },
+                ]}
+                details={[
+                  { label: 'Site', value: log.site_name || 'Historical' },
+                  { label: 'Location', value: <LocationMapCell latitude={log.latitude} longitude={log.longitude} /> },
+                  ...(log.source === 'manual' ? [
+                    { label: 'Created', value: formatTimestamp(log.created_at) },
+                    { label: 'Created by', value: log.created_by },
+                    { label: 'Reason', value: log.reason }
+                  ] : []),
+                ]}
+              />
+            )}
             emptyMessage={`No attendance logs recorded for ${selectedDate}`}
           />
         )}

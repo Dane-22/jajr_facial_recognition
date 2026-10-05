@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const { manualLog } = require('../middleware/audit');
 const { validCoordinates } = require('../utils/siteRules');
+const { recordManualAttendance, AttendanceError } = require('../services/manualAttendance');
 
 const audit = (req, action, entityType, entityId, before, after) => manualLog(
   req.user.id, 'admin', action, entityType, entityId, before, after,
@@ -101,52 +102,20 @@ const saveAssignments = async (req, res) => {
 
 const correctTimeOut = async (req, res) => {
   try {
-    const [admins] = await pool.query('SELECT position FROM admins WHERE id = ?', [req.user?.id]);
-    if (admins[0]?.position !== 'Superadmin') return res.status(403).json({ error: 'Only a Superadmin can correct a time-out.' });
-  } catch (error) {
-    console.error('Failed to verify Superadmin:', error);
-    return res.status(500).json({ error: 'Unable to verify correction permissions.' });
-  }
-  const userId = Number(req.params.userId);
-  const correctedAt = new Date(req.body?.correctedAt);
-  const reason = req.body?.reason;
-  if (!Number.isInteger(userId) || userId < 1 || typeof req.body?.correctedAt !== 'string' ||
-      !Number.isFinite(correctedAt.getTime()) ||
-      correctedAt.getTime() > Date.now() || typeof reason !== 'string' || reason.trim().length < 10 || reason.trim().length > 500) {
-    return res.status(400).json({ error: 'Enter a valid past time and a reason of 10 to 500 characters.' });
-  }
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-    const [users] = await connection.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
-    if (!users.length) { await connection.rollback(); return res.status(404).json({ error: 'Employee not found.' }); }
-    const [sessions] = await connection.query('SELECT * FROM employee_site_sessions WHERE user_id = ?', [userId]);
-    const session = sessions[0];
-    if (!session) { await connection.rollback(); return res.status(409).json({ error: 'No open time-in was found.' }); }
-    if (correctedAt < new Date(session.started_at)) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'Corrected time-out must be after the time-in.' });
+    const correctedAt = new Date(req.body?.correctedAt);
+    if (typeof req.body?.correctedAt !== 'string' || !Number.isFinite(correctedAt.getTime())) {
+      throw new AttendanceError(400, 'Enter a valid Asia/Manila time-out.');
     }
-    const [result] = await connection.query(`INSERT INTO attendance_logs (user_id, status, timestamp, site_id)
-      VALUES (?, 'OUT', ?, ?)`, [userId, correctedAt, session.site_id]);
-    await connection.query('DELETE FROM employee_site_sessions WHERE user_id = ?', [userId]);
-    await connection.query(`INSERT INTO audit_logs
-      (user_id, user_type, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent)
-      VALUES (?, 'admin', 'CORRECT_TIME_OUT', 'attendance', ?, NULL, ?, ?, ?)`, [
-      req.user.id, result.insertId,
-      JSON.stringify({ userId, siteId: session.site_id, inLogId: session.in_log_id,
-        correctedAt: correctedAt.toISOString(), reason: reason.trim() }),
-      req.ip || req.connection.remoteAddress, req.get('user-agent') || null
-    ]);
-    await connection.commit();
-    res.json({ logId: result.insertId });
+    const at = new Date(correctedAt.getTime() + 8 * 3600000).toISOString().slice(0, 19) + '+08:00';
+    await pool.ready;
+    const result = await recordManualAttendance({ adminId: req.user.id, userId: req.params.userId,
+      mode: 'OUT', at, reason: req.body?.reason, ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('user-agent') || null });
+    req.app.get('io')?.to('admin-room').emit('attendance:new', result.logs[0]);
+    res.json({ logId: result.logs[0].id });
   } catch (error) {
-    if (connection) await connection.rollback().catch(() => {});
-    console.error('Failed to correct time-out:', error);
-    res.status(500).json({ error: 'Failed to correct time-out.' });
-  } finally {
-    connection?.release();
+    if (!(error instanceof AttendanceError)) console.error('Failed to correct time-out:', error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to correct time-out.' });
   }
 };
 

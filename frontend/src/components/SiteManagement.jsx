@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 const emptySite = { name: '', latitude: '', longitude: '', radius_meters: '100', active: true };
 
-export default function SiteManagement() {
+export default function SiteManagement({ onNavigate }) {
   const isSuperadmin = (() => {
     try {
       const payload = JSON.parse(atob((localStorage.getItem('admin_token') || '').split('.')[1]));
@@ -17,7 +17,6 @@ export default function SiteManagement() {
   const [busy, setBusy] = useState(false);
   const [assignments, setAssignments] = useState({});
   const [assignmentFeedback, setAssignmentFeedback] = useState({});
-  const [correction, setCorrection] = useState({});
 
   const request = async (path, options = {}) => {
     const response = await fetch(`/api/admin/${path}`, {
@@ -64,21 +63,6 @@ export default function SiteManagement() {
     } catch (failure) {
       setAssignmentFeedback(current => ({ ...current, [userId]: { type: 'error', text: failure.message } }));
     }
-    finally { setBusy(false); }
-  };
-
-  const correctTimeOut = async userId => {
-    setBusy(true); setError(''); setMessage('');
-    try {
-      const entry = correction[userId] || {};
-      await request(`time-out-corrections/${userId}`, {
-        method: 'POST',
-        body: JSON.stringify({ correctedAt: entry.correctedAt ? new Date(entry.correctedAt).toISOString() : null, reason: entry.reason })
-      });
-      setCorrection(current => ({ ...current, [userId]: {} }));
-      setMessage('Time-out correction recorded.');
-      await refresh();
-    } catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   };
 
@@ -131,17 +115,14 @@ export default function SiteManagement() {
         </span>}
       </div>)}
     </section>
-    <section className="space-y-3"><h4 className="text-sm font-bold">Open time-ins · Superadmin corrections</h4>
+    <section className="space-y-3"><h4 className="text-sm font-bold">Open time-ins</h4>
+      {isSuperadmin && <button type="button" onClick={() => onNavigate?.('manual-attendance')}
+        className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white">
+        Go to Manual Attendance for time-out corrections
+      </button>}
       {!data.sessions.length && <p className="text-xs text-slate-500">No open time-ins.</p>}
       {data.sessions.map(session => <div key={session.user_id} className="border rounded-xl p-3 text-xs space-y-2">
         <p><strong>{session.employee_name}</strong> · {session.site_name} · In since {new Date(session.started_at).toLocaleString()}</p>
-        {isSuperadmin && <><div className="grid md:grid-cols-2 gap-2">
-          <label>Verified time-out<input type="datetime-local" value={correction[session.user_id]?.correctedAt || ''}
-            onChange={e => setCorrection(current => ({ ...current, [session.user_id]: { ...current[session.user_id], correctedAt: e.target.value } }))} className="block border rounded-lg p-2 w-full mt-1" /></label>
-          <label>Reason (at least 10 characters)<input value={correction[session.user_id]?.reason || ''}
-            onChange={e => setCorrection(current => ({ ...current, [session.user_id]: { ...current[session.user_id], reason: e.target.value } }))} className="block border rounded-lg p-2 w-full mt-1" /></label>
-        </div>
-        <button type="button" disabled={busy} onClick={() => correctTimeOut(session.user_id)} className="px-3 py-1.5 bg-amber-700 text-white rounded-lg">Record corrected time-out</button></>}
       </div>)}
     </section>
   </div>;

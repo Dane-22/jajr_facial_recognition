@@ -3,7 +3,7 @@ import SiteManagement from './SiteManagement';
 
 const API_URL = '/api';
 
-const Settings = () => {
+const Settings = ({ onNavigate }) => {
   const [activeSubTab, setActiveSubTab] = useState('recognition');
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
@@ -630,7 +630,7 @@ const Settings = () => {
           </div>
         )}
 
-        {activeSubTab === 'geolocation' && <SiteManagement />}
+        {activeSubTab === 'geolocation' && <SiteManagement onNavigate={onNavigate} />}
       </div>
     </div>
   );

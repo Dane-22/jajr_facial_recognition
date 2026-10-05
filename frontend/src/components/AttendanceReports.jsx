@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import TableScroll from './UI/TableScroll';
+import RecordCard from './UI/RecordCard';
 
 const AttendanceReports = () => {
   const [reportType, setReportType] = useState('daily');
@@ -163,11 +165,11 @@ const AttendanceReports = () => {
   const totalDaysPresentAgg = reportList.reduce((acc, curr) => acc + Number(curr.days_present || 0), 0);
 
   return (
-    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden space-y-6 p-6">
+    <div className="w-full min-w-0 bg-white rounded-xl border border-slate-100 shadow-sm space-y-4 p-3 sm:space-y-6 sm:p-6">
       {/* Header & Export Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900 mb-1 flex flex-wrap items-center gap-2">
             📄 Attendance Reports & Analytics
             <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium border border-slate-200">
               Export Engine
@@ -176,7 +178,7 @@ const AttendanceReports = () => {
           <p className="text-slate-500 text-xs">Generate comprehensive daily, weekly, and monthly attendance reports.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={exportToPDF}
             disabled={!reportData || loading || isExportingPDF}
@@ -196,7 +198,7 @@ const AttendanceReports = () => {
       <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-4">
         {/* Mode Switcher Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/60 pb-3">
-          <div className="flex items-center bg-slate-200/60 p-1 rounded-xl gap-1">
+          <div className="flex min-w-0 flex-wrap items-center bg-slate-200/60 p-1 rounded-xl gap-1">
             <button
               onClick={() => setReportType('daily')}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
@@ -319,7 +321,7 @@ const AttendanceReports = () => {
 
       {/* Summary Cards */}
       {reportData && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-200/60 text-slate-700 flex items-center justify-center font-bold text-base">
               👥
@@ -370,7 +372,7 @@ const AttendanceReports = () => {
       )}
 
       {/* Report Results Table */}
-      <div className="border border-slate-100 rounded-2xl overflow-hidden">
+      <div className="min-w-0 border border-slate-100 rounded-2xl">
         {loading ? (
           <div className="py-12 flex items-center justify-center gap-3">
             <div className="w-8 h-8 border-3 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
@@ -378,8 +380,27 @@ const AttendanceReports = () => {
           </div>
         ) : reportData && reportData.report && reportData.report.length > 0 ? (
           <div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="space-y-3 p-3 md:hidden" data-testid="mobile-record-list">
+              {currentReportItems.map((employee, index) => (
+                <RecordCard
+                  key={employee.id || index}
+                  testId={`report-card-${employee.id || index}`}
+                  title={employee.name || 'N/A'}
+                  badge={<span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">Role: {employee.role || 'Staff'}</span>}
+                  fields={[
+                    { label: 'Days present', value: employee.days_present || 0 },
+                    { label: 'Check-ins', value: employee.total_check_ins || employee.check_ins || 0 },
+                    { label: 'Check-outs', value: employee.total_check_outs || employee.check_outs || 0 },
+                  ]}
+                  details={reportType === 'daily' ? [
+                    { label: 'First check-in', value: employee.first_check_in ? new Date(employee.first_check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A' },
+                    { label: 'Last check-out', value: employee.last_check_out ? new Date(employee.last_check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A' },
+                  ] : []}
+                />
+              ))}
+            </div>
+            <TableScroll className="hidden md:block">
+              <table className="w-full min-w-max text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
                     <th className="py-3 px-4">Employee Name</th>
@@ -429,7 +450,7 @@ const AttendanceReports = () => {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
 
             {/* Pagination Controls */}
             {totalItems > 0 && (

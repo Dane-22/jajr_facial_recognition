@@ -378,7 +378,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
           onClick={handleOpenWidget}
           data-testid="ai-chat-trigger"
           aria-label="Open Chat & AI Assistant"
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 border border-slate-700">
+          className="chat-trigger fixed top-1 right-14 bottom-auto sm:top-auto sm:bottom-6 sm:right-6 z-50 flex items-center gap-3 p-3 sm:px-4 sm:py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 border border-slate-700">
           <div className="relative flex items-center justify-center">
             <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-base">
@@ -399,7 +399,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
 
       {/* ─── Expanded Messenger Chat Window ────────────────────────────────────── */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[420px] h-[580px] bg-slate-900/95 backdrop-blur-xl text-slate-100 rounded-2xl shadow-2xl border border-slate-700/60 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-2 right-2 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1rem)] sm:w-[420px] h-[min(580px,calc(100dvh-1rem))] bg-slate-900/95 backdrop-blur-xl text-slate-100 rounded-2xl shadow-2xl border border-slate-700/60 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
           
           {/* Top Header & Tab Toggle */}
           <div className="px-4 py-2.5 bg-slate-800/90 border-b border-slate-700/80 flex items-center justify-between">

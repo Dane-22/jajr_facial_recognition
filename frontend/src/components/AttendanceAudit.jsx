@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import TableScroll from './UI/TableScroll';
+import LocationMapCell from './UI/LocationMapCell';
+import RecordCard from './UI/RecordCard';
+import { serializeCsv } from '../utils/csv';
+import { formatAttendanceTime, attendanceDate } from '../utils/attendanceTime';
 
 const API_URL = '/api';
 
@@ -98,7 +103,7 @@ const AttendanceAudit = () => {
     const set = new Set();
     logs.forEach(log => {
       if (log.timestamp) {
-        const dateStr = new Date(log.timestamp).toISOString().split('T')[0];
+        const dateStr = attendanceDate(log.timestamp);
         set.add(dateStr);
       }
     });
@@ -111,22 +116,11 @@ const AttendanceAudit = () => {
     // Filter by Calendar Selected Date Range
     if (selectedStartDate && !selectedEndDate) {
       filtered = filtered.filter(log => {
-        const date = new Date(log.timestamp);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const logDateStr = `${year}-${month}-${day}`;
-
-        return logDateStr === selectedStartDate;
+        return attendanceDate(log.timestamp) === selectedStartDate;
       });
     } else if (selectedStartDate && selectedEndDate) {
       filtered = filtered.filter(log => {
-        const date = new Date(log.timestamp);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const logDateStr = `${year}-${month}-${day}`;
-
+        const logDateStr = attendanceDate(log.timestamp);
         return logDateStr >= selectedStartDate && logDateStr <= selectedEndDate;
       });
     }
@@ -260,18 +254,6 @@ const AttendanceAudit = () => {
     return days;
   }, [year, month]);
 
-  const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
   const getStatusColor = (status) => {
     return status === 'IN'
       ? 'bg-slate-100 text-slate-700 border-slate-200'
@@ -284,19 +266,18 @@ const AttendanceAudit = () => {
     setIsExporting(true);
     setTimeout(() => setIsExporting(false), 2000);
 
-    const headers = ['ID', 'Name', 'Role', 'Status', 'Timestamp', 'Site'];
+    const headers = ['ID', 'Name', 'Role', 'Status', 'Effective Time (Asia/Manila)', 'Site', 'Source', 'Created (Asia/Manila)', 'Created By', 'Reason'];
     const rows = filteredLogs.map(log => [
       log.id,
       log.name,
       log.role,
       log.status,
-      formatTimestamp(log.timestamp),
-      log.site_name || ''
+      formatAttendanceTime(log.timestamp),
+      log.site_name || '', log.source || 'scanner', formatAttendanceTime(log.created_at),
+      log.created_by || '', log.reason || ''
     ]);
 
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
+    const csvContent = serializeCsv([headers, ...rows]);
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -315,11 +296,11 @@ const AttendanceAudit = () => {
   const currentLogs = filteredLogs.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="bg-white border border-slate-100 rounded-xl shadow-sm">
+    <div className="min-w-0 bg-white border border-slate-100 rounded-xl shadow-sm">
       {/* Compact Integrated Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-5 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-3 py-4 sm:px-6 sm:py-5 border-b border-slate-100">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900 mb-1 flex flex-wrap items-center gap-2">
             Attendance Audit
             <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium border border-slate-200">
               Interactive Calendar Filter
@@ -327,7 +308,7 @@ const AttendanceAudit = () => {
           </h2>
           <p className="text-slate-500 text-xs">Filter attendance logs by clicking dates on the interactive calendar grid.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
@@ -348,13 +329,13 @@ const AttendanceAudit = () => {
 
       {/* 📅 Interactive Calendar Filter Section */}
       {isCalendarExpanded && (
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+        <div className="px-3 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-slate-50/50">
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Embedded Calendar Grid Widget */}
             <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
               {/* Calendar Header: Month Navigation */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-bold text-slate-900">
                     {monthNames[month]} {year}
                   </h3>
@@ -542,7 +523,7 @@ const AttendanceAudit = () => {
       )}
 
       {/* Results Table */}
-      <div className="px-6 py-5">
+      <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-5">
         <h3 className="text-sm font-bold text-slate-900 mb-4">Attendance Records</h3>
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
@@ -573,8 +554,34 @@ const AttendanceAudit = () => {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full" data-testid="audit-table">
+          <>
+          <div className="space-y-3 md:hidden" data-testid="mobile-record-list">
+            {currentLogs.map((log) => (
+              <RecordCard
+                key={log.id}
+                testId={`attendance-audit-card-${log.id}`}
+                title={log.name}
+                subtitle={`Attendance #${log.id}`}
+                badge={<span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getStatusColor(log.status)}`}>{log.status}</span>}
+                fields={[
+                  { label: 'Effective time', value: formatAttendanceTime(log.timestamp) },
+                  { label: 'Source', value: log.source === 'manual' ? 'Manual' : 'Scanner' },
+                  { label: 'Role', value: log.role || 'Staff' },
+                ]}
+                details={[
+                  { label: 'Site', value: log.site_name || 'Historical' },
+                  { label: 'Location', value: <LocationMapCell latitude={log.latitude} longitude={log.longitude} /> },
+                  ...(log.source === 'manual' ? [
+                    { label: 'Created', value: formatAttendanceTime(log.created_at) },
+                    { label: 'Created by', value: log.created_by },
+                    { label: 'Reason', value: log.reason }
+                  ] : []),
+                ]}
+              />
+            ))}
+          </div>
+          <TableScroll className="hidden md:block">
+            <table className="w-full min-w-max" data-testid="audit-table">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">
@@ -596,6 +603,8 @@ const AttendanceAudit = () => {
                     Location
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">Site</th>
+                  <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">Source</th>
+                  <th className="px-5 py-3 text-left text-xs font-bold text-slate-900 uppercase tracking-wider">Manual details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -618,30 +627,22 @@ const AttendanceAudit = () => {
                       </span>
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap text-sm text-slate-700">
-                      {formatTimestamp(log.timestamp)}
+                      {formatAttendanceTime(log.timestamp)}
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap text-sm text-slate-700">
-                      {log.latitude && log.longitude ? (
-                        <iframe 
-                          width="200" 
-                          height="120" 
-                          frameBorder="0" 
-                          scrolling="no" 
-                          marginHeight="0" 
-                          marginWidth="0" 
-                          src={`https://maps.google.com/maps?q=${log.latitude},${log.longitude}&hl=en&z=17&output=embed`}
-                          className="rounded-lg border border-slate-200"
-                        ></iframe>
-                      ) : (
-                        <span className="text-slate-400 italic">No location data</span>
-                      )}
+                      <LocationMapCell latitude={log.latitude} longitude={log.longitude} />
                     </td>
                     <td className="px-5 py-3 text-xs text-slate-700">{log.site_name || 'Historical'}</td>
+                    <td className="px-5 py-3 text-xs text-slate-700">{log.source === 'manual' ? 'Manual' : 'Scanner'}</td>
+                    <td className="px-5 py-3 text-xs text-slate-700">{log.source === 'manual' && <details><summary>Details</summary>
+                      <p>Created: {formatAttendanceTime(log.created_at)}</p><p>By: {log.created_by}</p><p>Reason: {log.reason}</p>
+                    </details>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
+          </>
         )}
 
         {/* Pagination Bar */}

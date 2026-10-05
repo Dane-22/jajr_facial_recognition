@@ -1,15 +1,21 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 const { migrateSites } = require('../utils/siteMigration');
+const { migrateManualAttendance } = require('../utils/manualAttendanceMigration');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  // Keep MySQL TIMESTAMP values and mysql2 Date parsing on the same UTC basis.
+  timezone: 'Z',
   waitForConnections: process.env.DB_WAIT_FOR_CONNECTIONS !== 'false',
   connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
   queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0
+});
+pool.pool.on('connection', connection => {
+  connection.query("SET time_zone = '+00:00'");
 });
 
 // Run auto-migrations on startup
@@ -117,6 +123,7 @@ const runMigrations = async () => {
   }
   // Site rules are required for every attendance scan. Fail startup if this migration fails.
   await migrateSites(pool);
+  await migrateManualAttendance(pool);
 };
 
 pool.ready = runMigrations();

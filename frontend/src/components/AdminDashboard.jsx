@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import RecordCard from './UI/RecordCard';
 
 const AdminDashboard = () => {
   const [logs, setLogs] = useState([]);
@@ -140,12 +141,12 @@ const AdminDashboard = () => {
         </div>
 
         {/* Logs Table */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 overflow-hidden flex flex-col min-h-[30rem]">
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 overflow-hidden flex flex-col md:min-h-[30rem]">
           <div className="p-6 border-b border-slate-700/50">
             <h3 className="text-lg font-semibold text-white">Attendance Records</h3>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-auto px-6 py-6">
+          <div className="flex-1 min-h-0 overflow-auto px-3 py-3 md:px-6 md:py-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
@@ -170,7 +171,24 @@ const AdminDashboard = () => {
                 <p className="text-slate-400 font-medium">No attendance logs found for this date</p>
               </div>
             ) : (
-              <div className="overflow-x-auto min-h-[18rem]">
+              <>
+              <div className="space-y-3 md:hidden" data-testid="mobile-record-list">
+                {logs.map((log) => (
+                  <RecordCard
+                    key={log.id}
+                    testId={`legacy-attendance-card-${log.id}`}
+                    dark
+                    title={log.name}
+                    subtitle={`Attendance #${log.id}`}
+                    badge={<span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getStatusColor(log.status)}`}>{log.status}</span>}
+                    fields={[
+                      { label: 'Role', value: log.role || 'Staff' },
+                      { label: 'Timestamp', value: formatTimestamp(log.timestamp) },
+                    ]}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block md:min-h-[18rem]">
                 <table className="w-full">
                 <thead>
                   <tr className="bg-slate-900/50">
@@ -218,6 +236,7 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>

@@ -9,11 +9,18 @@ import DashboardCharts from './DashboardCharts';
 import AIChatWidget from './AIChatWidget';
 import Settings from './Settings';
 import AdminManagement from './AdminManagement';
+import ManualAttendance from './ManualAttendance';
 
 const AdminLayout = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
+  const isSuperadmin = (() => {
+    try {
+      const payload = JSON.parse(atob((localStorage.getItem('admin_token') || '').split('.')[1]));
+      return payload.position === 'Superadmin';
+    } catch { return false; }
+  })();
 
   // Detect system dark mode preference for root class
   /* eslint-disable no-unused-vars */
@@ -46,6 +53,7 @@ const AdminLayout = () => {
         </svg>
       ),
     },
+    ...(isSuperadmin ? [{ id: 'manual-attendance', label: 'Manual Attendance', icon: <span aria-hidden="true">◷</span> }] : []),
     {
       id: 'admin-management',
       label: 'Admin Management',
@@ -126,10 +134,12 @@ const AdminLayout = () => {
         return <AttendanceReports />;
       case 'admin-management':
         return <AdminManagement />;
+      case 'manual-attendance':
+        return isSuperadmin ? <ManualAttendance /> : <DashboardCharts />;
       case 'audit-logs':
         return <AuditLogs />;
       case 'settings':
-        return <Settings />;
+        return <Settings onNavigate={handleNavClick} />;
       case 'dashboard':
         return <DashboardCharts />;
       default:
@@ -138,7 +148,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex w-full min-h-screen overflow-x-hidden m-0 p-0 bg-white">
+    <div className="admin-shell flex flex-col md:flex-row w-full min-h-screen overflow-x-hidden m-0 p-0 bg-white">
       {/* Mobile/Tablet Top Bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200">
         <div className="flex items-center justify-between px-4 py-3">
@@ -250,12 +260,12 @@ const AdminLayout = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 bg-slate-50 flex flex-col min-h-screen w-full p-6 md:p-8 md:ml-64 overflow-x-hidden">
+      <main className="flex-1 min-w-0 bg-slate-50 flex flex-col min-h-screen w-full px-3 pt-3 pb-6 sm:px-5 sm:pt-5 md:p-8 md:ml-64 overflow-x-hidden">
         {/* Mobile Spacer for Fixed Header */}
-        <div className="md:hidden h-16" />
+        <div className="mobile-header-spacer md:hidden h-16" />
 
         {/* Content Container */}
-        <div className="flex-1 w-full m-0 p-0">
+        <div className="flex-1 min-w-0 w-full m-0 p-0">
           {renderContent()}
         </div>
       </main>

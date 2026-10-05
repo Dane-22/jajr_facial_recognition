@@ -2,6 +2,13 @@ const pool = require('../config/db');
 const { manualLog } = require('../middleware/audit');
 const crypto = require('crypto');
 const { validCoordinates, attendanceSiteDecision } = require('../utils/siteRules');
+const manilaDate = date => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
 
 const getPublicSettings = async (req, res) => {
   try {
@@ -177,13 +184,18 @@ const getDailyLogs = async (req, res) => {
   try {
     const { date, userId, status, sortBy = 'timestamp', sortOrder = 'DESC' } = req.query;
     
-    const selectedDate = date || new Date().toISOString().split('T')[0];
+    const selectedDate = date || manilaDate(new Date());
     
-    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role, users.id as user_id
+    let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role, users.id as user_id,
+       CASE WHEN manual.attendance_log_id IS NULL THEN 'scanner' ELSE 'manual' END AS source,
+       manual.reason, manual.operation_id, manual.created_at_utc AS created_at,
+       COALESCE(actor.username, manual.admin_username) AS created_by
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
        LEFT JOIN sites ON sites.id = attendance_logs.site_id
-       WHERE DATE(attendance_logs.timestamp) = ?`;
+       LEFT JOIN manual_attendance_details manual ON manual.attendance_log_id = attendance_logs.id
+       LEFT JOIN admins actor ON actor.id = manual.admin_id
+       WHERE DATE(DATE_ADD(attendance_logs.timestamp, INTERVAL 8 HOUR)) = ?`;
     const params = [selectedDate];
     
     // Filter by employee
@@ -222,10 +234,15 @@ const getDailyLogs = async (req, res) => {
 const getAllLogs = async (req, res) => {
   try {
     const [logs] = await pool.query(
-      `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role
+      `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role,
+       CASE WHEN manual.attendance_log_id IS NULL THEN 'scanner' ELSE 'manual' END AS source,
+       manual.reason, manual.operation_id, manual.created_at_utc AS created_at,
+       COALESCE(actor.username, manual.admin_username) AS created_by
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
        LEFT JOIN sites ON sites.id = attendance_logs.site_id
+       LEFT JOIN manual_attendance_details manual ON manual.attendance_log_id = attendance_logs.id
+       LEFT JOIN admins actor ON actor.id = manual.admin_id
        ORDER BY attendance_logs.timestamp DESC
        LIMIT 1000`
     );
