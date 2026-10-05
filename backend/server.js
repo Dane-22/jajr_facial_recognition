@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const path = require('path');
 const pool = require('./config/db');
+const { startSyncService } = require('./services/googleSheetsSync');
 
 const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
@@ -219,6 +220,9 @@ pool.ready.then(() => server.listen(PORT, async () => {
   loadModels().then(() => console.log('[FaceRecognition] Models ready')).catch(error => console.error('[FaceRecognition] Model preload failed:', error));
   // Attempt Redis connection — falls back to node-cache if unavailable
   await connectRedis();
+  
+  // Start background Google Sheets sync
+  startSyncService();
 })).catch(async error => {
   console.error('Database migration failed; server was not started:', error);
   await pool.end().catch(() => {});

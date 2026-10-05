@@ -30,6 +30,9 @@ const AttendanceAudit = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
   const lastFetchRef = useRef(0);
 
   useEffect(() => {
@@ -261,13 +264,32 @@ const AttendanceAudit = () => {
   };
 
   const exportToCSV = () => {
-    if (filteredLogs.length === 0 || isExporting) return;
+    let logsToExport = [...logs];
+
+    if (exportStartDate && !exportEndDate) {
+      logsToExport = logsToExport.filter(log => {
+        return attendanceDate(log.timestamp) === exportStartDate;
+      });
+    } else if (exportStartDate && exportEndDate) {
+      logsToExport = logsToExport.filter(log => {
+        const logDateStr = attendanceDate(log.timestamp);
+        return logDateStr >= exportStartDate && logDateStr <= exportEndDate;
+      });
+    } else if (!exportStartDate && exportEndDate) {
+      logsToExport = logsToExport.filter(log => {
+        return attendanceDate(log.timestamp) <= exportEndDate;
+      });
+    }
+
+    if (logsToExport.length === 0) {
+      alert('No attendance logs found for the selected date range.');
+      return;
+    }
 
     setIsExporting(true);
-    setTimeout(() => setIsExporting(false), 2000);
 
     const headers = ['ID', 'Name', 'Role', 'Status', 'Effective Time (Asia/Manila)', 'Site', 'Source', 'Created (Asia/Manila)', 'Created By', 'Reason'];
-    const rows = filteredLogs.map(log => [
+    const rows = logsToExport.map(log => [
       log.id,
       log.name,
       log.role,
@@ -283,9 +305,20 @@ const AttendanceAudit = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `attendance_audit_${new Date().toISOString().split('T')[0]}.csv`;
+
+    let filename = `attendance_audit_${new Date().toISOString().split('T')[0]}.csv`;
+    if (exportStartDate && exportEndDate) {
+      filename = `attendance_audit_${exportStartDate}_to_${exportEndDate}.csv`;
+    } else if (exportStartDate) {
+      filename = `attendance_audit_${exportStartDate}.csv`;
+    }
+
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+
+    setIsExporting(false);
+    setIsExportModalOpen(false);
   };
 
   // Pagination calculations
@@ -315,9 +348,13 @@ const AttendanceAudit = () => {
             📅 {isCalendarExpanded ? 'Collapse Calendar' : 'Show Calendar Filter'}
           </button>
           <button
-            onClick={exportToCSV}
+            onClick={() => {
+              setExportStartDate(selectedStartDate || '');
+              setExportEndDate(selectedEndDate || '');
+              setIsExportModalOpen(true);
+            }}
             data-testid="export-csv-button"
-            disabled={filteredLogs.length === 0 || isExporting}
+            disabled={logs.length === 0 || isExporting}
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -716,6 +753,61 @@ const AttendanceAudit = () => {
           </div>
         )}
       </div>
+
+      {/* Export CSV Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Export Attendance Data</h3>
+              <button onClick={() => setIsExportModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600">Select a date range for the CSV export. Leave blank to export all records.</p>
+
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="exportStart" className="block text-xs font-bold text-slate-700 mb-1.5">Start Date</label>
+                  <input
+                    type="date"
+                    id="exportStart"
+                    value={exportStartDate}
+                    onChange={(e) => setExportStartDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="exportEnd" className="block text-xs font-bold text-slate-700 mb-1.5">End Date</label>
+                  <input
+                    type="date"
+                    id="exportEnd"
+                    value={exportEndDate}
+                    onChange={(e) => setExportEndDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all duration-200"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={exportToCSV}
+                disabled={isExporting}
+                className="px-4 py-2 text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+              >
+                {isExporting ? 'Generating...' : 'Download CSV'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
