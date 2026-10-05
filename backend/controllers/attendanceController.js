@@ -154,6 +154,69 @@ const logAttendance = async (req, res) => {
       });
     }
 
+    // ── Google Sheets Webhook Integration ──────────────────────────────────
+    const webhookUrlWeekly = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+    const webhookUrlUser = process.env.GOOGLE_SHEET_USER_WEBHOOK_URL;
+    
+    if (webhookUrlWeekly || webhookUrlUser) {
+      try {
+        const dateObj = new Date();
+        const formattedTimestamp = dateObj.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        const payload = {
+          userId: actualUserId,
+          name: userName,
+          role: userRole,
+          status,
+          timestamp: formattedTimestamp
+        };
+        
+        // Run webhooks asynchronously so it doesn't block the API response
+        (async () => {
+          try {
+            let successWeekly = true;
+            let successUser = true;
+
+            // Send to weekly sheets
+            if (webhookUrlWeekly) {
+              const resWeekly = await fetch(webhookUrlWeekly, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (!resWeekly.ok && resWeekly.type !== 'opaqueredirect') successWeekly = false;
+            }
+
+            // Send to individual user sheets
+            if (webhookUrlUser) {
+              const resUser = await fetch(webhookUrlUser, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (!resUser.ok && resUser.type !== 'opaqueredirect') successUser = false;
+            }
+
+            // If all configured webhooks succeeded, mark as synced
+            if (successWeekly && successUser) {
+              await pool.query('UPDATE attendance_logs SET google_sheets_synced = TRUE WHERE id = ?', [result.insertId]);
+            }
+          } catch (webhookError) {
+            console.error('Webhook error during live check-in (will retry later):', webhookError.message);
+          }
+        })();
+      } catch (prepareError) {
+        console.error('Error preparing webhook payload:', prepareError);
+      }
+    }
+
     res.status(201).json({
       message: 'Attendance logged successfully',
       logId: result.insertId,
