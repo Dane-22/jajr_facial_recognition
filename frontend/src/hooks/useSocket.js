@@ -19,6 +19,7 @@ const useSocket = (event, onEvent, enabled = true) => {
     const token = localStorage.getItem('admin_token');
 
     const socket = io(SOCKET_URL, {
+      autoConnect: false,
       transports: ['websocket'],
       auth: { token },
       reconnectionAttempts: 5,
@@ -40,9 +41,14 @@ const useSocket = (event, onEvent, enabled = true) => {
       socket.on(event, onEvent);
     }
 
+    // Strict Mode immediately cleans up its first effect in development.
+    // Defer the handshake so that discarded mount never opens a WebSocket.
+    const connectTimer = window.setTimeout(() => socket.connect(), 0);
+
     return () => {
+      window.clearTimeout(connectTimer);
       socket.disconnect();
-      console.log('[Socket.IO] Disconnected');
+      socketRef.current = null;
     };
   }, [event, enabled]); // onEvent intentionally omitted — callers should useCallback
 

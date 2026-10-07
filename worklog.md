@@ -279,3 +279,25 @@ The user's screenshot additions and earlier screenshot deletions were left untou
 - Added database-backed Superadmin authorization, employee/session context APIs, atomic attendance writes, manual provenance metadata, effective and creation timestamps, audit events, and scanner-compatible session locking. Existing Settings time-out correction now links to the shared page/service.
 - Updated daily logs and attendance audit views/exports to identify manual records and show their source, creator, reason, and creation time. Reports and date filtering now use Asia/Manila day boundaries.
 - Verification passed: frontend lint, frontend build, 10 frontend tests, 15 existing backend tests, four focused manual attendance tests, and backend syntax checks. Mobile screenshots at 320, 360, 390, 430 px, a short 320 px screen, and a 200% zoom layout equivalent are in `docs/manual-attendance-evidence-2026-10-05/`; each showed one card per employee with no page overflow. Live database migration and a real attendance write remain unverified. No production deployment was performed.
+
+## Responsive admin cards and Manual Attendance production release - 2026-10-05 (Asia/Manila)
+
+- Committed the responsive admin card layouts, Superadmin Manual Attendance page, tests, documentation, and screenshots as `6c0220e`. Merged the four newer GitHub commits, retaining their Attendance Audit date-range export alongside the new Asia/Manila filtering and manual-entry fields. Pushed merge commit `60c496d` to GitHub `main`.
+- After the merge, 19 backend tests and 10 frontend tests passed. Frontend lint and the production build also passed.
+- Confirmed the VPS checkout was at `58ebc5a` and left its untracked nested `jajr_facial_recognition/` directory untouched. Created and verified a fresh MySQL dump at `/root/jajr-backup-20261005-133349.sql` before deployment; it was nonempty and ended with MySQL's dump completion marker.
+- Fast-forwarded the VPS to `60c496d`, built the backend and frontend images, applied the repository's `google_sheets_synced` migration, and recreated the two application containers. MySQL and Redis stayed running. Verified that the new `manual_attendance_details` table and `google_sheets_synced` column exist.
+- All four Compose services were running afterward. Backend logs showed Redis connected and face models ready. The public homepage and `/api/attendance/settings` returned HTTP 200; the unauthenticated Manual Attendance route returned HTTP 401. No production attendance entry was created for testing, so an authenticated manual entry and its downstream reports remain unverified in production.
+- Removed the temporary deployment SSH key from the VPS `authorized_keys` and Windows Temp after verification.
+
+## Open-shift site transfer - 2026-10-07 (Asia/Manila)
+
+- Added a Superadmin-only transfer action to Manual Attendance for an employee with an open time-in. The destination must be another active assigned site. The current session moves to that site while the original time-in record stays intact, so the scanner can time out at the destination.
+- Saved each transfer with its previous and destination site names, acting admin, reason, and effective UTC time. The transfer and its audit event commit atomically. Recent employee history and Audit Logs display transfer events separately from attendance records.
+- A manual time-out must follow the latest transfer; the same second is rejected because attendance records store seconds while transfer records store fractional seconds. Transfers use the employee lock shared with scanner attendance, and stale session or later-attendance states return a conflict.
+- Local validation before the follow-up fix: all 24 backend tests and 12 frontend tests passed, along with frontend lint and production build, backend syntax checks, and `git diff --check`. A production migration, authenticated transfer, and physical scanner time-out at the destination have not been verified. The change has not been deployed.
+
+## Local Manual Attendance error and socket startup - 2026-10-07 (Asia/Manila)
+
+- Reproduced the employee 6 history request returning HTTP 500. The local `manual_attendance_details` table predated the `admin_username` column used by Manual Attendance, and `CREATE TABLE IF NOT EXISTS` did not upgrade it. Added an idempotent column migration and backfill from `admins`, then applied it to the local database. The authenticated employee history endpoint now returns HTTP 200 with 12 records.
+- A fresh short-lived admin token returned HTTP 200 from the history, dashboard stats, and chat rooms endpoints. The browser's 401 responses therefore indicate its stored session needs a fresh sign-in; no token values were printed.
+- Deferred the admin and chat Socket.IO handshakes until after React Strict Mode's initial development cleanup. Chat starts with polling and can upgrade to WebSocket. Added a Strict Mode regression test. Frontend lint, all 13 frontend tests, and the production build passed.

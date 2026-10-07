@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { recordManualAttendance, AttendanceError } = require('../services/manualAttendance');
+const { recordManualAttendance, transferOpenSession, AttendanceError } = require('../services/manualAttendance');
 
 const failure = (res, error) => {
   if (!(error instanceof AttendanceError)) console.error('Manual attendance failed:', error);
@@ -50,7 +50,18 @@ async function employeeHistory(req, res) {
         LEFT JOIN manual_attendance_details m ON m.attendance_log_id = l.id
         LEFT JOIN admins a ON a.id = m.admin_id
         WHERE l.user_id = ? ORDER BY l.timestamp DESC, l.id DESC LIMIT 20`, [userId]);
-      return { employee: employees[0], logs };
+      const [transfers] = await connection.query(`SELECT t.id, t.in_log_id,
+        t.from_site_id, t.from_site_name, t.to_site_id, t.to_site_name,
+        CONCAT(LEFT(DATE_FORMAT(t.effective_at_utc, '%Y-%m-%dT%H:%i:%s.%f'), 23), 'Z') AS timestamp,
+        CONCAT(LEFT(DATE_FORMAT(t.created_at_utc, '%Y-%m-%dT%H:%i:%s.%f'), 23), 'Z') AS created_at,
+        COALESCE(a.username, t.admin_username) AS created_by, t.reason
+        FROM employee_site_transfers t LEFT JOIN admins a ON a.id = t.admin_id
+        WHERE t.user_id = ? ORDER BY t.effective_at_utc DESC, t.id DESC LIMIT 20`, [userId]);
+      const history = [
+        ...logs.map(log => ({ ...log, kind: 'attendance' })),
+        ...transfers.map(transfer => ({ ...transfer, kind: 'transfer' }))
+      ].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp) || b.id - a.id).slice(0, 20);
+      return { employee: employees[0], logs: history };
     });
     res.json(result);
   } catch (error) { failure(res, error); }
@@ -71,4 +82,17 @@ async function createManualAttendance(req, res) {
   } catch (error) { failure(res, error); }
 }
 
-module.exports = { listEmployees, employeeHistory, createManualAttendance };
+async function createSiteTransfer(req, res) {
+  try {
+    await pool.ready;
+    const result = await transferOpenSession({
+      adminId: req.user.id, userId: req.params.userId,
+      fromSiteId: req.body?.fromSiteId, toSiteId: req.body?.toSiteId, reason: req.body?.reason,
+      ip: req.ip || req.connection.remoteAddress, userAgent: req.get('user-agent') || null
+    });
+    req.app.get('io')?.to('admin-room').emit('attendance:site-transfer', result.transfer);
+    res.status(201).json(result);
+  } catch (error) { failure(res, error); }
+}
+
+module.exports = { listEmployees, employeeHistory, createManualAttendance, createSiteTransfer };

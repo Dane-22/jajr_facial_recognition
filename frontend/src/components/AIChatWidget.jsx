@@ -80,7 +80,8 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     const token = getAuthToken();
     const socket = io('', {
       auth: { token },
-      transports: ['websocket', 'polling']
+      autoConnect: false,
+      transports: ['polling', 'websocket']
     });
 
     socketRef.current = socket;
@@ -141,9 +142,15 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       }));
     });
 
-    fetchRooms();
+    // Avoid duplicate requests and abandoned handshakes from Strict Mode's
+    // development-only effect setup and cleanup cycle.
+    const connectTimer = window.setTimeout(() => {
+      socket.connect();
+      fetchRooms();
+    }, 0);
 
     return () => {
+      window.clearTimeout(connectTimer);
       socket.disconnect();
     };
      

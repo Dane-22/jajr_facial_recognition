@@ -146,6 +146,7 @@ const AuditLogs = () => {
       'VIEW': 'bg-purple-100 text-purple-800',
       'CHECK_IN': 'bg-green-100 text-green-800',
       'CHECK_OUT': 'bg-orange-100 text-orange-800',
+      'MANUAL_SITE_TRANSFER': 'bg-blue-100 text-blue-800',
       'EXPORT': 'bg-indigo-100 text-indigo-800'
     };
     return colors[action] || 'bg-gray-100 text-gray-800';
@@ -290,6 +291,7 @@ const AuditLogs = () => {
             <option value="DELETE">Delete</option>
             <option value="CHECK_IN">Check-in</option>
             <option value="CHECK_OUT">Check-out</option>
+            <option value="MANUAL_SITE_TRANSFER">Manual site transfer</option>
           </select>
           <select
             value={entityTypeFilter}
@@ -298,6 +300,7 @@ const AuditLogs = () => {
             <option value="">All Entity Types</option>
             <option value="employee">Employee</option>
             <option value="attendance">Attendance</option>
+            <option value="site_transfer">Site transfer</option>
             <option value="admin">Admin</option>
           </select>
           <select
