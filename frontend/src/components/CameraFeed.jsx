@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'jajr_kiosk_recent_faces';
+const PREVIEW_ASPECT = 4 / 3;
+const GUIDE_ASPECT = 3 / 4;
 
 function storedFaces() {
   try {
@@ -20,6 +22,18 @@ export default function CameraFeed({ onFaceDetected }) {
   const [scanPhase, setScanPhase] = useState(null);
   const [scanElapsedMs, setScanElapsedMs] = useState(0);
   const [locationProblem, setLocationProblem] = useState(null);
+  const [videoSize, setVideoSize] = useState({ width: 4, height: 3 });
+
+  // object-contain can letterbox the stream inside the 4:3 preview. Size the
+  // portrait guide from the visible video area, not the full preview box.
+  const videoAspect = videoSize.width / videoSize.height;
+  const visibleWidth = Math.min(1, videoAspect / PREVIEW_ASPECT);
+  const visibleHeight = Math.min(1 / PREVIEW_ASPECT, 1 / videoAspect);
+  const guideHeight = Math.min(visibleHeight * 0.78, visibleWidth * 0.8 / GUIDE_ASPECT);
+  const guideStyle = {
+    width: `${guideHeight * GUIDE_ASPECT * 100}%`,
+    height: `${guideHeight * PREVIEW_ASPECT * 100}%`
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -195,6 +209,7 @@ export default function CameraFeed({ onFaceDetected }) {
             setLocationProblem({
               ...coords,
               accuracy: location?.accuracy,
+              boundaryContext: result.boundaryContext,
               siteName: result.siteName,
               distanceMeters: result.distanceMeters,
               allowedRadiusMeters: result.allowedRadiusMeters
@@ -268,6 +283,10 @@ export default function CameraFeed({ onFaceDetected }) {
         await video.play();
         if (disposed || document.hidden) { stop(); return; }
         const trackSettings = camera.getVideoTracks()[0]?.getSettings?.() || {};
+        setVideoSize({
+          width: video.videoWidth || trackSettings.width || 4,
+          height: video.videoHeight || trackSettings.height || 3
+        });
         setResolution(`${trackSettings.width || video.videoWidth} × ${trackSettings.height || video.videoHeight}`);
         setStatus('active');
         setMessage('Position one face in the frame. Scanning is automatic.');
@@ -318,20 +337,30 @@ export default function CameraFeed({ onFaceDetected }) {
 
   return <div className="w-full max-w-2xl mx-auto">
     <div className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden">
-      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain -scale-x-100" />
-      {status === 'active' && <div className="absolute inset-0 border-[3px] border-emerald-400/40 rounded-full m-[15%] pointer-events-none" />}
-      {status === 'active' && scanPhase && <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-slate-950/85 px-3 py-2 text-sm font-semibold text-white shadow-lg" aria-live="off">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden="true" />
-        <span>{scanPhase === 'location' ? 'Getting location' : 'Scanning face'}</span>
-        <span className="tabular-nums text-emerald-300">{(scanElapsedMs / 1000).toFixed(1)}s</span>
-      </div>}
+      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain -scale-x-100"
+        onLoadedMetadata={event => {
+          const video = event.currentTarget;
+          if (video.videoWidth && video.videoHeight) setVideoSize({ width: video.videoWidth, height: video.videoHeight });
+        }} />
+      {status === 'active' && <div data-testid="face-guide" aria-hidden="true" style={guideStyle}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-emerald-400/40 pointer-events-none" />}
       {status !== 'active' && <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 text-white px-6 text-center">{message}</div>}
     </div>
     <div aria-live="polite" className="mt-3 text-sm text-slate-700">
+      {status === 'active' && <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium text-slate-800">Center your face in the oval.</p>
+        {scanPhase && <div className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white" aria-live="off">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden="true" />
+          <span>{scanPhase === 'location' ? 'Getting location' : 'Scanning face'}</span>
+          <span className="tabular-nums text-emerald-300">{(scanElapsedMs / 1000).toFixed(1)}s</span>
+        </div>}
+      </div>}
       <p>{message}</p>
       {status === 'active' && <p className="text-xs text-slate-500">Camera: {resolution}</p>}
       {status === 'active' && locationProblem && <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
-        <p>Your device reported you {locationProblem.distanceMeters} m from {locationProblem.siteName} (allowed {locationProblem.allowedRadiusMeters} m).
+        <p>{`${locationProblem.boundaryContext === 'required_time_out_site' ? 'Required time-out site'
+          : locationProblem.boundaryContext === 'closest_assigned_boundary' ? 'Closest assigned boundary'
+            : 'Configured site boundary'}: ${locationProblem.siteName}. Reported coordinates are ${locationProblem.distanceMeters} m from its configured center (allowed ${locationProblem.allowedRadiusMeters} m).`}
           {Number.isFinite(locationProblem.accuracy) && ` Its reported accuracy was ±${Math.round(locationProblem.accuracy)} m.`}
           {' '}The next scan will request a fresh location.</p>
         <details className="mt-1"><summary className="cursor-pointer underline">Show reported coordinates</summary>

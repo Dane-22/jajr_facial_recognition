@@ -100,7 +100,7 @@ function MainApp() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-white">2.</span>
-                  <span>Position your face clearly in the camera frame</span>
+                  <span>Center your face in the oval guide</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-white">3.</span>

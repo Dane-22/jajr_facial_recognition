@@ -109,11 +109,12 @@ const logAttendance = async (req, res) => {
     if (decision.error) return reject(decision.code, decision.error, decision.reason === 'outside_site_boundary'
       ? {
           reason: decision.reason,
+          boundaryContext: decision.boundaryContext,
           siteName: decision.siteName,
           distanceMeters: decision.distanceMeters,
           allowedRadiusMeters: decision.allowedRadiusMeters
         }
-      : {});
+      : { reason: decision.reason });
     const { site } = decision;
     const [result] = await connection.query(
       'INSERT INTO attendance_logs (user_id, status, timestamp, latitude, longitude, site_id) VALUES (?, ?, NOW(), ?, ?, ?)',

@@ -26,11 +26,31 @@ test('requires a time-out at the site with the open time-in', () => {
   const wrongSite = attendanceSiteDecision([a, b], a, 'OUT', b.latitude, b.longitude);
   assert.match(wrongSite.error, /PANICSICAN/);
   assert.equal(wrongSite.reason, 'outside_site_boundary');
+  assert.equal(wrongSite.boundaryContext, 'required_time_out_site');
+  assert.match(wrongSite.error, /Time-out requires reported coordinates inside/);
   assert.ok(wrongSite.distanceMeters > wrongSite.allowedRadiusMeters);
   assert.equal(attendanceSiteDecision([a, b], a, 'OUT', a.latitude, a.longitude).site.id, 1);
   assert.match(attendanceSiteDecision([a, b], a, 'IN', b.latitude, b.longitude).error, /Time out/);
   assert.equal(attendanceSiteDecision([a, b], null, 'IN', b.latitude, b.longitude).site.id, 2);
   const outside = attendanceSiteDecision([a, b], null, 'IN', 16.6700000, 120.3323000);
   assert.equal(outside.reason, 'outside_site_boundary');
+  assert.equal(outside.boundaryContext, 'closest_assigned_boundary');
+  assert.match(outside.error, /Closest assigned boundary:/);
   assert.ok(outside.distanceMeters > outside.allowedRadiusMeters);
+});
+
+test('distinguishes missing assignments and preserves open-site rules when boundaries overlap', () => {
+  const a = { id: 1, site_id: 1, name: 'PANICSICAN', latitude: 16.66, longitude: 120.33, radius_meters: 100 };
+  const b = { id: 2, site_id: 2, name: 'SUNDARA', latitude: 16.66, longitude: 120.3305, radius_meters: 100 };
+  const missing = attendanceSiteDecision([], null, 'IN', b.latitude, b.longitude);
+  assert.equal(missing.reason, 'no_active_site_assignment');
+  assert.match(missing.error, /No active site is assigned/);
+  const inactiveOpenSite = attendanceSiteDecision([b], a, 'OUT', b.latitude, b.longitude);
+  assert.equal(inactiveOpenSite.reason, 'inactive_open_session_assignment');
+  assert.match(inactiveOpenSite.error, /open time-in at PANICSICAN/);
+  const overlappingOut = attendanceSiteDecision([a, b], a, 'OUT', b.latitude, b.longitude);
+  assert.equal(overlappingOut.site.id, a.id);
+  const outsideOpenSite = attendanceSiteDecision([a, b], a, 'OUT', 16.66, 120.332);
+  assert.equal(outsideOpenSite.reason, 'outside_site_boundary');
+  assert.equal(outsideOpenSite.boundaryContext, 'required_time_out_site');
 });

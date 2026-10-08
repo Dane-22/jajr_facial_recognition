@@ -24,11 +24,12 @@ function matchingSite(sites, latitude, longitude) {
     .sort((a, b) => a.distance - b.distance)[0] || null;
 }
 
-function outsideBoundary(site, latitude, longitude, error) {
+function outsideBoundary(site, latitude, longitude, error, boundaryContext) {
   return {
     error,
     code: 403,
     reason: 'outside_site_boundary',
+    boundaryContext,
     siteName: site.name,
     distanceMeters: Math.round(distanceMeters(Number(latitude), Number(longitude), Number(site.latitude), Number(site.longitude))),
     allowedRadiusMeters: Number(site.radius_meters)
@@ -36,17 +37,22 @@ function outsideBoundary(site, latitude, longitude, error) {
 }
 
 function attendanceSiteDecision(assignedSites, openSession, status, latitude, longitude) {
-  if (!assignedSites.length) return { error: 'You have no active assigned site. Contact an administrator.', code: 403 };
+  if (!assignedSites.length) return {
+    error: 'No active site is assigned to this employee. Contact an administrator to check site assignments.',
+    code: 403, reason: 'no_active_site_assignment'
+  };
   if (openSession && status !== 'OUT') return {
     error: `You are timed in at ${openSession.name}. Time out there before timing in elsewhere.`, code: 409
   };
   if (!openSession && status !== 'IN') return { error: 'No open time-in was found. Please scan again.', code: 409 };
   if (openSession && !assignedSites.some(site => site.id === openSession.site_id)) return {
-    error: `Your ${openSession.name} assignment is inactive. Contact a Superadmin to correct the open time-in.`, code: 403
+    error: `The assignment for the open time-in at ${openSession.name} is inactive or missing. Contact a Superadmin to correct the open time-in.`,
+    code: 403, reason: 'inactive_open_session_assignment'
   };
   if (openSession && !matchingSite([openSession], latitude, longitude)) return outsideBoundary(
     openSession, latitude, longitude,
-    `You timed in at ${openSession.name}. Return there to time out, or contact a Superadmin for a correction.`
+    `Time-out requires reported coordinates inside the boundary of the open session site, ${openSession.name}. Contact a Superadmin if a correction is needed.`,
+    'required_time_out_site'
   );
   const site = openSession || matchingSite(assignedSites, latitude, longitude);
   if (!site) {
@@ -55,7 +61,9 @@ function attendanceSiteDecision(assignedSites, openSession, status, latitude, lo
       const excess = distance - Number(candidate.radius_meters);
       return !best || excess < best.excess ? { site: candidate, excess } : best;
     }, null).site;
-    return outsideBoundary(nearest, latitude, longitude, 'You are outside the allowed boundary of your assigned sites.');
+    return outsideBoundary(nearest, latitude, longitude,
+      `Reported coordinates are outside every active assigned site boundary. Closest assigned boundary: ${nearest.name}.`,
+      'closest_assigned_boundary');
   }
   return { site };
 }

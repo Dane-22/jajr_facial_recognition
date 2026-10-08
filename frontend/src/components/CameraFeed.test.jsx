@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import CameraFeed from './CameraFeed';
 
 afterEach(() => {
@@ -37,6 +37,21 @@ test('camera starts automatically and stops when the kiosk view closes', async (
   Object.defineProperty(video, 'videoWidth', { configurable: true, get: () => 640 });
   Object.defineProperty(video, 'videoHeight', { configurable: true, get: () => 480 });
   await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+  const guide = await view.findByTestId('face-guide');
+  expect(guide.getAttribute('aria-hidden')).toBe('true');
+  expect(parseFloat(guide.style.width)).toBeCloseTo(43.875);
+  expect(parseFloat(guide.style.height)).toBeCloseTo(78);
+  expect(view.getByText('Center your face in the oval.')).toBeTruthy();
+  Object.defineProperty(video, 'videoWidth', { configurable: true, get: () => 1280 });
+  Object.defineProperty(video, 'videoHeight', { configurable: true, get: () => 720 });
+  fireEvent.loadedMetadata(video);
+  await waitFor(() => expect(parseFloat(guide.style.height)).toBeCloseTo(58.5));
+  expect(parseFloat(guide.style.width)).toBeCloseTo(32.90625);
+  Object.defineProperty(video, 'videoWidth', { configurable: true, get: () => 720 });
+  Object.defineProperty(video, 'videoHeight', { configurable: true, get: () => 1280 });
+  fireEvent.loadedMetadata(video);
+  await waitFor(() => expect(parseFloat(guide.style.height)).toBeCloseTo(60));
+  expect(parseFloat(guide.style.width)).toBeCloseTo(33.75);
   await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/face/kiosk-attendance')).toBe(true));
   expect(drawImage.mock.calls.some(([source]) => source === video)).toBe(true);
   await waitFor(() => expect(view.getByText('No face found.')).toBeTruthy());
@@ -53,7 +68,11 @@ test('camera starts automatically and stops when the kiosk view closes', async (
   expect(stop).toHaveBeenCalled();
 });
 
-test('shows the reported location and requests a fresh fix after a site-boundary rejection', async () => {
+test.each([
+  { context: 'closest_assigned_boundary', label: 'Closest assigned boundary: Main Office' },
+  { context: 'required_time_out_site', label: 'Required time-out site: Main Office' },
+  { context: undefined, label: 'Configured site boundary: Main Office' }
+])('shows $context and requests a fresh fix after a site-boundary rejection', async ({ context, label }) => {
   const getUserMedia = vi.fn().mockResolvedValue({
     getTracks: () => [{ stop: vi.fn() }],
     getVideoTracks: () => [{ getSettings: () => ({ width: 640, height: 480 }) }]
@@ -66,8 +85,8 @@ test('shows the reported location and requests a fresh fix after a site-boundary
     : {
         ok: false, status: 403,
         json: async () => ({
-          error: 'You are outside the allowed boundary of your assigned sites.',
-          reason: 'outside_site_boundary', siteName: 'Main Office',
+          error: 'Reported coordinates are outside the configured boundary.',
+          reason: 'outside_site_boundary', boundaryContext: context, siteName: 'Main Office',
           distanceMeters: 178, allowedRadiusMeters: 100
         })
       }));
@@ -87,7 +106,8 @@ test('shows the reported location and requests a fresh fix after a site-boundary
   Object.defineProperty(video, 'readyState', { configurable: true, get: () => 4 });
   Object.defineProperty(video, 'videoWidth', { configurable: true, get: () => 640 });
   Object.defineProperty(video, 'videoHeight', { configurable: true, get: () => 480 });
-  await waitFor(() => expect(view.getByText(/Your device reported you 178 m/)).toBeTruthy());
+  await waitFor(() => expect(view.getByText(label, { exact: false })).toBeTruthy());
+  expect(view.getByText(/Reported coordinates are 178 m/)).toBeTruthy();
   expect(view.getByText(/accuracy was ±175 m/)).toBeTruthy();
   expect(getCurrentPosition.mock.calls[0][2].maximumAge).toBe(15000);
   await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledTimes(2), { timeout: 7000 });

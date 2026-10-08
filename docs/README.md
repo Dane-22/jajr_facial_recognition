@@ -7,6 +7,7 @@ An automated attendance tracking system using facial recognition technology.
 This system uses face-api.js for facial recognition to automatically log employee attendance when they are detected by a camera. It includes a frontend for real-time attendance display and an admin dashboard for managing employees and viewing attendance records.
 
 See [Facial recognition camera and mirroring review](FACE_RECOGNITION_CAMERA_MIRRORING.md) for the current preview, capture, and matching behavior.
+For the kiosk's portrait oval face guide, see [facial recognition camera guide](documentation.md).
 
 ## Features
 
