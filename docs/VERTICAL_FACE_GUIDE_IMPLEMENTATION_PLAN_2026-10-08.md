@@ -1,6 +1,6 @@
 # Vertical face guide: discussion and implementation plan
 
-Status: **Implemented locally on 2026-10-08; verification and release status below.**
+Status: **Implemented and deployed on 2026-10-08; physical-device visual verification pending.**
 
 ## Current behavior
 
@@ -53,5 +53,5 @@ This plan does not change face detection thresholds, crop uploaded images, alter
 - The kiosk overlay now uses a centered 3:4 portrait oval. It is sized from the source video's visible dimensions inside the unchanged 4:3 `object-contain` preview, including letterboxed streams.
 - The guide remains visual guidance. The instruction below the preview and the kiosk's “How to Use” text now ask people to center their face in the oval.
 - The in-progress timer moved below the preview so it cannot cover the top of the portrait oval on small screens.
-- Frame capture, face matching, and mobile/enrollment camera paths remain as before. Live camera placement and production deployment are not yet verified.
+- Frame capture, face matching, and mobile/enrollment camera paths remain as before. Production served the new `CameraFeed-DUjzjgc3.js` asset with HTTP 200 on 2026-10-08. Live camera placement remains unverified.
 - Local verification passed: 14 frontend tests (including guide sizing for 4:3, 16:9, and portrait video), frontend lint, and the production build. A physical-device visual check and consented live scan are still needed before release.

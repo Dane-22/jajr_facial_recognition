@@ -1,6 +1,6 @@
 # Worklog — 2026-09-29 (Asia/Manila)
 
-## Current status — 2026-10-07 (Asia/Manila)
+## Current status — 2026-10-08 (Asia/Manila)
 
 This worklog is chronological. Earlier statements such as “not deployed” describe the state at that time; the latest status is below.
 
@@ -15,7 +15,8 @@ This worklog is chronological. Earlier statements such as “not deployed” des
 | Multi-site geofencing | Commit `d6c9a36` is deployed on the production VPS. A verified backup preceded the migration; the three sites and nine initial Main Office assignments were confirmed. A Main Office scan matched the employee but was rejected by the location boundary; diagnostic update `8826d71` is deployed to measure the phone's reported distance and accuracy. |
 | Mirrored web camera | Commit `58ebc5a` is deployed on the production VPS. The kiosk and enrollment previews are mirrored for display; recognition frames remain unflipped. Only the frontend container was rebuilt. Public homepage, API, and new assets returned HTTP 200. Live visual camera verification is still pending. |
 | Manual Attendance and open-shift site transfer | Commit `bac200d` is deployed. The production transfer table and Manual Attendance `admin_username` column were verified after startup. A live authenticated transfer and scanner time-out at the destination are still pending. |
-| Employee archival | Archive/restore implementation is local only. Existing employees default to active; archived employees retain attendance history but cannot create new attendance. Production migration and live archive/restore are not yet verified. |
+| Employee archival | Deployed with commit `1205c74`. Production has the `users.is_active` and `users.archived_at` columns. A live archive/restore action remains unverified. |
+| Portrait guide and site rejection messages | Deployed with commit `1205c74`; the public kiosk asset contains the new time-out boundary context. Physical-device visual placement and attendance behavior remain unverified. The SUNDARA incident remains open pending production evidence. |
 
 Open work remains in the admin implementation plan: timestamp/timezone reconciliation, production validation of employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
 
@@ -324,3 +325,10 @@ The user's screenshot additions and earlier screenshot deletions were left untou
 - Reviewed the pending archive/restore routes, transaction, migration, scanner guards, directory controls, and historical reporting filters. No additional code changes were needed.
 - Re-ran the backend suite (29 passed), frontend suite (14 passed), frontend lint, production build, and `git diff --check`; all passed. The build retains its existing large admin chunk warning.
 - Production migration, deployment, and a live archive/restore action remain unverified.
+
+## Portrait guide, site messages, and archival production release - 2026-10-08 (Asia/Manila)
+
+- Pushed `8728d97` (employee archival) and `1205c74` (portrait guide, site rejection messages, and investigation docs) to GitHub `main`. Pre-release local checks passed: 34 backend tests, 16 frontend tests, frontend lint, production build, and staged diff check.
+- Confirmed the VPS was at `bac200d` with all four Compose services running and only its pre-existing untracked nested `jajr_facial_recognition/` directory. Verified Compose config and 71 GB available disk space. Created `/root/jajr-backup-20261008-132222.sql.gz` before deployment using `mysqldump --no-tablespaces --single-transaction --quick`. The gzip was nonempty, passed `gzip -t`, ended with the dump completion marker, and was restricted to root (mode 600).
+- Fast-forwarded the VPS checkout to `1205c74`, built backend/frontend images, and recreated only those two containers. MySQL and Redis were not restarted. Backend startup reported Redis connected and face models ready. The production `users` table has `is_active` and `archived_at` columns.
+- Public homepage, settings API, and `CameraFeed-DUjzjgc3.js` returned HTTP 200; the asset contains `required_time_out_site`. Settings returned `geofencing_enabled: true`, and unauthenticated `/api/admin/sites` returned 401. No attendance scan or site assignment was changed for testing. The affected SUNDARA request, production pin/assignment, and physical camera view remain unverified.

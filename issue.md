@@ -2,7 +2,7 @@
 
 ## P1 — SUNDARA scan reports distance from PANICSICAN (reported 2026-10-08)
 
-**Status: Open. Root cause unconfirmed; local message clarification is not deployed.**
+**Status: Open. Root cause unconfirmed; message clarification deployed on 2026-10-08.**
 
 **Reported symptom.** A coworker physically at SUNDARA saw approximately “3,504 m from PNICSICAN (allowed 100 m)” with browser-reported accuracy of 99 m. The seeded site is spelled **PANICSICAN** in this repository; verify the exact displayed spelling. This is a **rejection**, not evidence that attendance was recorded at PANICSICAN or that GPS caused the failure. The date/time, full main error line, reported latitude/longitude, employee ID matched by the server, and scan mode are not yet available.
 
@@ -21,7 +21,7 @@ If the current server matched the intended employee, there was no open session, 
 
 | Check | Result | Limit |
 | --- | --- | --- |
-| [Public homepage](https://jajr.xandree.com/) | HTTP 200; references `index-DijkNHUE.js`, which references `CameraFeed-CGxexjHJ.js`. The served camera bundle contains `outside_site_boundary`, the distance notice, and forced fresh-location retry. | Confirms the public **frontend** behavior, not the backend commit or employee data. It still has the prior horizontal guide, so current uncommitted UI work is not deployed. |
+| [Public homepage](https://jajr.xandree.com/), **before** the 2026-10-08 deployment | HTTP 200; referenced `index-DijkNHUE.js` and `CameraFeed-CGxexjHJ.js`. That camera bundle contained `outside_site_boundary`, the distance notice, and forced fresh-location retry. | Historical frontend observation only. See the deployment result below for the current asset; neither observation establishes employee data or this scan's cause. |
 | [Public `/api/attendance/settings`](https://jajr.xandree.com/api/attendance/settings) | HTTP 200, `geofencing_enabled: true`. | Does not expose sites or assignments. |
 | Protected `/api/users`, `/api/employees`, `/api/chat/rooms` without credentials | HTTP 401 each. | No employee or site records were read. |
 | VPS read-only `git rev-parse HEAD` by SSH | Authentication failed (`Permission denied`). The computer/browser inspection tool also could not start. | Current backend commit, production SQL, logs, and signed-in admin views remain inaccessible from this session. The worklog last verified deployment of `bac200d` on 2026-10-07, which is historical evidence only. |
@@ -42,11 +42,13 @@ If the current server matched the intended employee, there was no open session, 
 
 Only after the production configuration, identity, and open-session state are understood, use an authorized test employee and a controlled test window. A real scan **can create an `IN` or `OUT` record**; never use a repeat face scan merely to refresh GPS. Record the pre-test attendance/session state, make one planned scan, then compare post-test rows and session state. Stop and investigate any wrong identity or unexpected write before another scan.
 
-### Local message clarification (implemented 2026-10-08; not deployed)
+### Message clarification (implemented and deployed 2026-10-08)
 
 The web kiosk uses `reason: outside_site_boundary` to clear its cached fix and request fresh coordinates on the next scan. The mobile client displays the server's `error` text. The local change therefore retains that reason, the HTTP 403 status, distance/radius fields, geofence decisions, and retry behavior. It adds `boundaryContext: required_time_out_site` or `closest_assigned_boundary` to boundary responses. Missing active assignments now carry `reason: no_active_site_assignment`; an inactive/missing assignment for the open session's site carries `reason: inactive_open_session_assignment`. The server and kiosk messages describe **reported coordinates relative to configured boundaries**, not the employee's physical site. No radius, recognition threshold, attendance rule, or production data was changed.
 
 If production checks later reveal a configuration or open-session error, correct it through the existing authorized workflow. The message change alone does **not** resolve the SUNDARA incident; its root cause remains unconfirmed.
+
+**Deployment verification, 2026-10-08:** The VPS fast-forwarded from `bac200d` to `1205c74` after a verified database backup. Backend/frontend images were rebuilt and their containers recreated; MySQL and Redis remained running. The backend reported Redis connected and face models ready. The public homepage and `CameraFeed-DUjzjgc3.js` returned HTTP 200; that asset contains `required_time_out_site`. `/api/attendance/settings` returned `geofencing_enabled: true`, and unauthenticated `/api/admin/sites` returned 401. The `users.is_active` and `users.archived_at` migration columns were present. No live attendance scan, employee assignment, SUNDARA pin, or historical rejected request was verified by these checks.
 
 **Local validation, 2026-10-08:** Eight focused backend rule/controller tests and four kiosk tests passed. They cover all four rejection distinctions, the unchanged `outside_site_boundary` reason and 403 status, overlapping boundaries, and rollback before any attendance/session write. The kiosk tests cover both boundary contexts and an older response without the new context field, and confirm the next geolocation request uses `maximumAge: 0` after rejection. Frontend lint and `git diff --check` passed. These checks do not establish what happened in the production request.
 
