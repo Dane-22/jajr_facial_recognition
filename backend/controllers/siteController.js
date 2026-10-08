@@ -10,9 +10,11 @@ const audit = (req, action, entityType, entityId, before, after) => manualLog(
 
 const getSites = async (_req, res) => {
   try {
+    await pool.ready;
     const [sites] = await pool.query('SELECT id, name, latitude, longitude, radius_meters, active FROM sites ORDER BY id');
     const [employees] = await pool.query(`SELECT u.id, u.name, GROUP_CONCAT(es.site_id ORDER BY es.site_id) AS site_ids
-      FROM users u LEFT JOIN employee_sites es ON es.user_id = u.id GROUP BY u.id, u.name ORDER BY u.name`);
+      FROM users u LEFT JOIN employee_sites es ON es.user_id = u.id
+      WHERE u.is_active = 1 GROUP BY u.id, u.name ORDER BY u.name`);
     const [sessions] = await pool.query(`SELECT ss.user_id, u.name AS employee_name, ss.site_id, s.name AS site_name,
       ss.started_at, ss.in_log_id FROM employee_site_sessions ss
       JOIN users u ON u.id = ss.user_id JOIN sites s ON s.id = ss.site_id ORDER BY ss.started_at`);
@@ -76,8 +78,9 @@ const saveAssignments = async (req, res) => {
     }
     connection = await pool.getConnection();
     await connection.beginTransaction();
-    const [users] = await connection.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
+    const [users] = await connection.query('SELECT id, is_active FROM users WHERE id = ? FOR UPDATE', [userId]);
     if (!users.length) { await connection.rollback(); return res.status(404).json({ error: 'Employee not found.' }); }
+    if (Number(users[0].is_active) === 0) { await connection.rollback(); return res.status(409).json({ error: 'Restore this employee before changing assignments.' }); }
     const [sites] = await connection.query('SELECT id FROM sites WHERE id IN (?) AND active = 1', [siteIds]);
     if (sites.length !== siteIds.length) { await connection.rollback(); return res.status(400).json({ error: 'Assignments must use active sites.' }); }
     const [open] = await connection.query('SELECT site_id FROM employee_site_sessions WHERE user_id = ?', [userId]);

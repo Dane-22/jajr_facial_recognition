@@ -7,7 +7,7 @@ const { verifyAdminToken } = require('../middleware/authMiddleware');
 router.get('/summary', verifyAdminToken, async (req, res) => {
   try {
     // 1. Total registered users count
-    const [totalRes] = await pool.query('SELECT COUNT(*) as total FROM users');
+    const [totalRes] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_active = 1');
     const totalEmployees = totalRes[0]?.total || 0;
 
     // 2. Today's check-ins and check-outs
@@ -33,6 +33,7 @@ router.get('/summary', verifyAdminToken, async (req, res) => {
       FROM attendance_logs al
       JOIN users u ON al.user_id = u.id
       WHERE DATE(al.timestamp) = CURDATE()
+        AND u.is_active = 1
         AND al.status = 'IN'
         AND TIME(al.timestamp) > '09:00:00'
       ORDER BY al.timestamp ASC
@@ -77,7 +78,7 @@ router.get('/search', verifyAdminToken, async (req, res) => {
     const [employees] = await pool.query(`
       SELECT id, name as full_name, role as employee_id, created_at
       FROM users
-      WHERE name LIKE ? OR role LIKE ?
+      WHERE is_active = 1 AND (name LIKE ? OR role LIKE ?)
       LIMIT 5
     `, [`%${q}%`, `%${q}%`]);
 

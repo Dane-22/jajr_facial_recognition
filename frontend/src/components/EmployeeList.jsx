@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import RecordCard from './UI/RecordCard';
 
-const EmployeeList = () => {
+const EmployeeList = ({ isSuperadmin = false }) => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [statusBusyId, setStatusBusyId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [formData, setFormData] = useState({ name: '', role: '' });
@@ -17,6 +19,7 @@ const EmployeeList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
@@ -26,7 +29,7 @@ const EmployeeList = () => {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const lastFetchRef = useRef(0);
+  const fetchSequenceRef = useRef(0);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -43,16 +46,10 @@ const EmployeeList = () => {
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [roleFilter, startDate, endDate, sortBy, sortOrder]);
+  }, [roleFilter, statusFilter, startDate, endDate, sortBy, sortOrder]);
 
   const fetchEmployees = useCallback(async () => {
-    const now = Date.now();
-    // Rate limiter throttle check (min 300ms between calls)
-    if (now - lastFetchRef.current < 300) {
-      return;
-    }
-    lastFetchRef.current = now;
-
+    const sequence = ++fetchSequenceRef.current;
     setLoading(true);
     setError('');
     try {
@@ -61,6 +58,7 @@ const EmployeeList = () => {
       
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       if (roleFilter) params.append('role', roleFilter);
+      params.append('status', statusFilter);
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       params.append('sortBy', sortBy);
@@ -73,12 +71,15 @@ const EmployeeList = () => {
       });
 
       if (response.status === 429) {
-        setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
-        setEmployees([]);
+        if (sequence === fetchSequenceRef.current) {
+          setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
+          setEmployees([]);
+        }
         return;
       }
 
       const data = await response.json();
+      if (sequence !== fetchSequenceRef.current) return;
 
       if (response.ok) {
         setEmployees(data.employees || []);
@@ -86,11 +87,11 @@ const EmployeeList = () => {
         setError(data.error || 'Failed to fetch employees');
       }
     } catch (err) {
-      setError('Network error. Please check your connection.');
+      if (sequence === fetchSequenceRef.current) setError('Network error. Please check your connection.');
     } finally {
-      setLoading(false);
+      if (sequence === fetchSequenceRef.current) setLoading(false);
     }
-  }, [debouncedSearchTerm, roleFilter, startDate, endDate, sortBy, sortOrder]);
+  }, [debouncedSearchTerm, roleFilter, statusFilter, startDate, endDate, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchEmployees();
@@ -238,28 +239,38 @@ const EmployeeList = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this employee? This is allowed only when they have no attendance history and cannot be undone.')) {
-      return;
-    }
-
+  const handleStatusChange = async (employee) => {
+    const active = !employee.is_active;
+    if (!window.confirm(active
+      ? `Restore ${employee.name} to active employees? Check that they have an active site assignment before scanning.`
+      : `Archive ${employee.name}? Their attendance history will remain available, but they cannot scan or record new attendance.`)) return;
+    setStatusBusyId(employee.id);
+    setError('');
+    setSuccess('');
     try {
       const token = localStorage.getItem('admin_token');
-      const response = await fetch(`/api/employees/${id}`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/employees/${employee.id}/status`, {
+        method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ active })
       });
-
+      const data = await response.json();
       if (response.ok) {
-        setEmployees(employees.filter(emp => emp.id !== id));
+        setEmployees(previous => statusFilter === 'all'
+          ? previous.map(item => item.id === employee.id ? data.employee : item)
+          : previous.filter(item => item.id !== employee.id));
+        setSuccess(active ? `${employee.name} restored successfully.`
+          : `${employee.name} archived successfully. Use Filters > Archived to restore them.`);
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to delete employee');
+        setError(data.error || 'Failed to change employee status');
       }
     } catch (err) {
       setError('Network error. Please check your connection.');
+    } finally {
+      setStatusBusyId(null);
     }
   };
 
@@ -318,6 +329,7 @@ const EmployeeList = () => {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '—';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -330,6 +342,7 @@ const EmployeeList = () => {
     setSearchTerm('');
     setDebouncedSearchTerm('');
     setRoleFilter('');
+    setStatusFilter('active');
     setStartDate('');
     setEndDate('');
     setSortBy('created_at');
@@ -340,6 +353,9 @@ const EmployeeList = () => {
   // Pagination calculations
   const totalItems = employees.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentEmployees = employees.slice(indexOfFirstItem, indexOfLastItem);
@@ -352,7 +368,7 @@ const EmployeeList = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 mb-1">Employee Management</h2>
-              <p className="text-slate-500 text-sm">Create and manage employees. Records with attendance history cannot be deleted.</p>
+              <p className="text-slate-500 text-sm">Archive former employees without losing attendance history. Restore them when needed.</p>
             </div>
             <div className="flex min-w-0 w-full flex-wrap items-center gap-3 sm:w-auto">
               <button
@@ -405,6 +421,15 @@ const EmployeeList = () => {
       {showFilters && (
         <div className="mb-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
           <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="flex-1">
+              <label htmlFor="employeeStatusFilter" className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+              <select id="employeeStatusFilter" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}
+                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm">
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+                <option value="all">All</option>
+              </select>
+            </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-2">Role</label>
               <input
@@ -473,7 +498,7 @@ const EmployeeList = () => {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm mb-1 font-medium">Total Employees</p>
+              <p className="text-slate-500 text-sm mb-1 font-medium">{statusFilter === 'active' ? 'Active' : statusFilter === 'archived' ? 'Archived' : 'Listed'} Employees</p>
               <p className="text-3xl font-bold text-slate-900">{employees.length}</p>
             </div>
             <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center">
@@ -507,11 +532,12 @@ const EmployeeList = () => {
           <p className="text-red-600 text-sm font-medium">{error}</p>
         </div>
       )}
+      {success && <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800" role="status">{success}</div>}
 
       {/* Employees Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="p-4 sm:p-6 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-900">All Employees</h3>
+          <h3 className="text-lg font-semibold text-slate-900">{statusFilter === 'active' ? 'Active' : statusFilter === 'archived' ? 'Archived' : 'All'} Employees</h3>
         </div>
 
         <div className="px-3 py-3 sm:px-6 sm:py-6">
@@ -528,7 +554,7 @@ const EmployeeList = () => {
                 </svg>
               </div>
               <p className="text-slate-700 font-semibold">No employees found</p>
-              <p className="text-slate-500 text-sm mt-1">Click &quot;Add Employee&quot; to create one</p>
+              <p className="text-slate-500 text-sm mt-1">Change the status filter or add an employee.</p>
             </div>
           ) : (
             <>
@@ -539,11 +565,14 @@ const EmployeeList = () => {
                   testId={`employee-card-${employee.id}`}
                   title={employee.name}
                   subtitle={`Employee #${employee.id}`}
-                  badge={<span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">Role: {employee.role || 'Staff'}</span>}
-                  details={[{ label: 'Created at', value: formatDate(employee.created_at) }]}
+                  badge={<span className={`rounded-lg border px-2 py-1 text-xs font-semibold ${employee.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>{employee.is_active ? 'Active' : 'Archived'} · {employee.role || 'Staff'}</span>}
+                  details={[{ label: 'Created at', value: formatDate(employee.created_at) },
+                    ...(!employee.is_active ? [{ label: 'Archived at', value: formatDate(employee.archived_at) }] : [])]}
                   actions={<>
-                    <button type="button" onClick={() => handleEdit(employee)} aria-label={`Edit ${employee.name}`} className="min-h-11 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Edit</button>
-                    <button type="button" onClick={() => handleDelete(employee.id)} aria-label={`Delete ${employee.name}`} className="min-h-11 rounded-lg bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">Delete</button>
+                    {employee.is_active && <button type="button" onClick={() => handleEdit(employee)} aria-label={`Edit ${employee.name}`} className="min-h-11 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Edit</button>}
+                    {isSuperadmin && <button type="button" disabled={statusBusyId === employee.id} onClick={() => handleStatusChange(employee)}
+                      aria-label={`${employee.is_active ? 'Archive' : 'Restore'} ${employee.name}`}
+                      className="min-h-11 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">{statusBusyId === employee.id ? 'Saving...' : employee.is_active ? 'Archive' : 'Restore'}</button>}
                   </>}
                 />
               ))}
@@ -563,6 +592,7 @@ const EmployeeList = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                       Role
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                       Created At
                     </th>
@@ -585,12 +615,14 @@ const EmployeeList = () => {
                           {employee.role}
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{employee.is_active ? 'Active' : 'Archived'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {formatDate(employee.created_at)}
+                        {!employee.is_active && <span className="block text-xs text-slate-500">Archived {formatDate(employee.archived_at)}</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">
-                          <button
+                          {employee.is_active && <button
                             data-testid={`edit-employee-${employee.id}`}
                             onClick={() => handleEdit(employee)}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors duration-200"
@@ -598,16 +630,11 @@ const EmployeeList = () => {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                          </button>
-                          <button
-                            data-testid={`delete-employee-${employee.id}`}
-                            onClick={() => handleDelete(employee.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                            title="Delete">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          </button>}
+                          {isSuperadmin && <button type="button" data-testid={`status-employee-${employee.id}`}
+                            onClick={() => handleStatusChange(employee)} disabled={statusBusyId === employee.id}
+                            className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                            title={employee.is_active ? 'Archive' : 'Restore'}>{statusBusyId === employee.id ? 'Saving...' : employee.is_active ? 'Archive' : 'Restore'}</button>}
                         </div>
                       </td>
                     </tr>

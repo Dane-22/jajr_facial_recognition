@@ -61,7 +61,7 @@ const logAttendance = async (req, res) => {
     if (isNaN(userId)) {
       // It's a name, look up the user ID
       const [users] = await pool.query(
-        'SELECT id FROM users WHERE name = ?',
+        'SELECT id FROM users WHERE name = ? AND is_active = 1',
         [userId]
       );
       if (users.length === 0) {
@@ -82,8 +82,9 @@ const logAttendance = async (req, res) => {
       connection = null;
       return res.status(code).json({ error, ...details });
     };
-    const [lockedUser] = await connection.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [actualUserId]);
+    const [lockedUser] = await connection.query('SELECT id, is_active FROM users WHERE id = ? FOR UPDATE', [actualUserId]);
     if (!lockedUser.length) return reject(404, 'Employee not found.');
+    if (Number(lockedUser[0].is_active) === 0) return reject(409, 'This employee is archived and cannot record attendance.');
     const antiSpamCheck = await connection.query(
       `SELECT * FROM attendance_logs 
        WHERE user_id = ? 
@@ -332,7 +333,7 @@ const getLastAttendance = async (req, res) => {
     if (isNaN(userId)) {
       // It's a name, look up the user ID
       const [users] = await pool.query(
-        'SELECT id FROM users WHERE name = ?',
+        'SELECT id FROM users WHERE name = ? AND is_active = 1',
         [userId]
       );
       if (users.length === 0) {

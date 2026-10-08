@@ -127,7 +127,7 @@ const AdminLayout = () => {
         return <DailyLogs />;
       case 'employees':
       case 'register':
-        return <EmployeeList />;
+        return <EmployeeList isSuperadmin={isSuperadmin} />;
       case 'audit':
         return <AttendanceAudit />;
       case 'reports':

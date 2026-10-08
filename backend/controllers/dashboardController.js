@@ -53,6 +53,7 @@ const getDashboardStats = async (req, res) => {
             AND ${manilaTime('timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
         ) ranked WHERE row_num = 1
       ) current_status ON current_status.user_id = u.id
+      WHERE u.is_active = 1
       GROUP BY u.id, u.name, current_status.status
       ORDER BY total_attendance DESC
       LIMIT 10
@@ -65,9 +66,10 @@ const getDashboardStats = async (req, res) => {
         COALESCE(SUM(status = 'OUT'), 0) as checked_out
       FROM (
         SELECT status, ROW_NUMBER() OVER (
-          PARTITION BY user_id ORDER BY timestamp DESC, id DESC
+          PARTITION BY attendance_logs.user_id ORDER BY attendance_logs.timestamp DESC, attendance_logs.id DESC
         ) AS row_num
         FROM attendance_logs
+        JOIN users active_users ON active_users.id = attendance_logs.user_id AND active_users.is_active = 1
         WHERE ${manilaTime('timestamp')} >= ${manilaToday}
           AND ${manilaTime('timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
       ) latest
@@ -75,7 +77,7 @@ const getDashboardStats = async (req, res) => {
     `);
 
     // Get total employees for accurate breakdown
-    const [totalEmployees] = await pool.query('SELECT COUNT(*) as count FROM users');
+    const [totalEmployees] = await pool.query('SELECT COUNT(*) as count FROM users WHERE is_active = 1');
     const totalEmpCount = Number(totalEmployees[0].count);
     const checkedIn = Number(breakdownData[0]?.checked_in || 0);
     const checkedOut = Number(breakdownData[0]?.checked_out || 0);

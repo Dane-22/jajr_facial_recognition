@@ -55,7 +55,8 @@ async function identifyFace(buffer) {
   if (detections.length !== 1) return { reason: 'multiple_faces' };
   if (detections[0].detection.box.width < 80) return { reason: 'face_too_small' };
 
-  const [users] = await pool.query('SELECT id, name, face_descriptor FROM users');
+  await pool.ready;
+  const [users] = await pool.query('SELECT id, name, face_descriptor FROM users WHERE is_active = 1');
   const distances = [];
   for (const user of users) {
     try {

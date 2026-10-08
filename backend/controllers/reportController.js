@@ -28,6 +28,7 @@ const getDailyReport = async (req, res) => {
        FROM users
        LEFT JOIN attendance_logs ON users.id = attendance_logs.user_id 
          AND ${attendanceDay('attendance_logs.timestamp')} = ?
+       WHERE users.is_active = 1 OR attendance_logs.id IS NOT NULL
        GROUP BY users.id, users.name, users.role
        ORDER BY users.name`,
       [queryDate]
@@ -65,6 +66,7 @@ const getWeeklyReport = async (req, res) => {
        FROM users
        LEFT JOIN attendance_logs ON users.id = attendance_logs.user_id 
          AND ${attendanceDay('attendance_logs.timestamp')} BETWEEN ? AND ?
+       WHERE users.is_active = 1 OR attendance_logs.id IS NOT NULL
        GROUP BY users.id, users.name, users.role
        ORDER BY users.name`,
       [start, end]
@@ -114,6 +116,7 @@ const getMonthlyReport = async (req, res) => {
        LEFT JOIN attendance_logs ON users.id = attendance_logs.user_id 
          AND ${attendanceDay('attendance_logs.timestamp')} >= ?
          AND ${attendanceDay('attendance_logs.timestamp')} < ?
+       WHERE users.is_active = 1 OR attendance_logs.id IS NOT NULL
        GROUP BY users.id, users.name, users.role
        ORDER BY users.name`,
       [startDate, nextMonthDate]
@@ -178,6 +181,7 @@ const getAttendanceStats = async (req, res) => {
        FROM users
        LEFT JOIN attendance_logs ON users.id = attendance_logs.user_id 
          AND ${attendanceDay('attendance_logs.timestamp')} BETWEEN ? AND ?
+       WHERE users.is_active = 1 OR attendance_logs.id IS NOT NULL
        GROUP BY users.id, users.name
        ORDER BY days_present DESC
        LIMIT 10`,

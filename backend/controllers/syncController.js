@@ -47,7 +47,7 @@ const batchSync = async (req, res) => {
         // Resolve userId (string name or ID)
         let actualUserId;
         if (isNaN(userId)) {
-          const [users] = await connection.query('SELECT id FROM users WHERE name = ?', [userId]);
+          const [users] = await connection.query('SELECT id FROM users WHERE name = ? AND is_active = 1', [userId]);
           if (users.length === 0) {
             results.failed++;
             results.errors.push({ userId, error: 'User not found' });
@@ -56,6 +56,15 @@ const batchSync = async (req, res) => {
           actualUserId = users[0].id;
         } else {
           actualUserId = parseInt(userId);
+        }
+
+        const [eligibleUsers] = await connection.query(
+          'SELECT is_active FROM users WHERE id = ? FOR UPDATE', [actualUserId]
+        );
+        if (!eligibleUsers.length || Number(eligibleUsers[0].is_active) === 0) {
+          results.failed++;
+          results.errors.push({ userId, error: 'Employee is not active' });
+          continue;
         }
 
         // Check if exact record exists to avoid duplication

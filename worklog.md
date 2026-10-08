@@ -1,6 +1,6 @@
 # Worklog — 2026-09-29 (Asia/Manila)
 
-## Current status — 2026-10-05 (Asia/Manila)
+## Current status — 2026-10-07 (Asia/Manila)
 
 This worklog is chronological. Earlier statements such as “not deployed” describe the state at that time; the latest status is below.
 
@@ -14,8 +14,10 @@ This worklog is chronological. Earlier statements such as “not deployed” des
 | Scanner timer | Commit `04667bb` was deployed before the multi-site update. An actual on-device timed scan has not yet been observed. |
 | Multi-site geofencing | Commit `d6c9a36` is deployed on the production VPS. A verified backup preceded the migration; the three sites and nine initial Main Office assignments were confirmed. A Main Office scan matched the employee but was rejected by the location boundary; diagnostic update `8826d71` is deployed to measure the phone's reported distance and accuracy. |
 | Mirrored web camera | Commit `58ebc5a` is deployed on the production VPS. The kiosk and enrollment previews are mirrored for display; recognition frames remain unflipped. Only the frontend container was rebuilt. Public homepage, API, and new assets returned HTTP 200. Live visual camera verification is still pending. |
+| Manual Attendance and open-shift site transfer | Commit `bac200d` is deployed. The production transfer table and Manual Attendance `admin_username` column were verified after startup. A live authenticated transfer and scanner time-out at the destination are still pending. |
+| Employee archival | Archive/restore implementation is local only. Existing employees default to active; archived employees retain attendance history but cannot create new attendance. Production migration and live archive/restore are not yet verified. |
 
-Open work remains in the admin implementation plan: timestamp/timezone reconciliation, employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
+Open work remains in the admin implementation plan: timestamp/timezone reconciliation, production validation of employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
 
 ## Scope and status
 
@@ -301,3 +303,24 @@ The user's screenshot additions and earlier screenshot deletions were left untou
 - Reproduced the employee 6 history request returning HTTP 500. The local `manual_attendance_details` table predated the `admin_username` column used by Manual Attendance, and `CREATE TABLE IF NOT EXISTS` did not upgrade it. Added an idempotent column migration and backfill from `admins`, then applied it to the local database. The authenticated employee history endpoint now returns HTTP 200 with 12 records.
 - A fresh short-lived admin token returned HTTP 200 from the history, dashboard stats, and chat rooms endpoints. The browser's 401 responses therefore indicate its stored session needs a fresh sign-in; no token values were printed.
 - Deferred the admin and chat Socket.IO handshakes until after React Strict Mode's initial development cleanup. Chat starts with polling and can upgrade to WebSocket. Added a Strict Mode regression test. Frontend lint, all 13 frontend tests, and the production build passed.
+
+## Open-shift site transfer production release - 2026-10-07 (Asia/Manila)
+
+- Confirmed the local `main` branch and GitHub tracking branch at `bac200d` with a clean working tree. Immediately before deployment, all 24 backend tests and 13 frontend tests passed locally.
+- Confirmed the VPS was on `main` at `60c496d` with all four Compose services running. Its existing untracked nested `jajr_facial_recognition/` directory was left untouched. Created `/root/jajr-backup-20261007-134744.sql` before the update; the dump was nonempty (234,059 bytes) and ended with MySQL's completion marker.
+- Fetched `origin/main`, fast-forwarded the VPS checkout to `bac200d`, validated the Compose configuration, built backend and frontend images, and recreated only those two containers. MySQL and Redis stayed running.
+- Verified the new `employee_site_transfers` table and the `manual_attendance_details.admin_username` column in the production database. All four containers remained running; backend logs showed Redis connected and face models ready. The public homepage, `/api/attendance/settings`, and new admin JavaScript asset returned HTTP 200. The unauthenticated Manual Attendance route returned HTTP 401 as expected.
+- Removed the one-time deployment public key from VPS `authorized_keys` and deleted its private and public key files from Windows Temp. No production attendance record or site assignment was changed for testing. An authenticated site transfer and physical scanner time-out at the destination remain unverified.
+
+## Employee archival implementation - 2026-10-07 (Asia/Manila)
+
+- Added an idempotent `users.is_active` and `users.archived_at` startup migration. Existing employees default to active. A Superadmin-only archive/restore endpoint locks the employee, rejects archiving an open time-in, and saves the status change and audit event in one transaction. Permanent employee deletion now returns a refusal instead of removing a record.
+- Employee Directory now has Active, Archived, and All filters with Archive and Restore actions. Archived employees stay available to historical attendance filters and reports when they have activity in the selected period, while current employee counts exclude them.
+- Face matching, the browser descriptor list, scanner and manual attendance writes, site assignment changes, and active chat/assistant employee lists exclude or reject archived employees. Restoring preserves prior site assignments, subject to each site's current active state.
+- Local validation: archive transaction and migration tests, full backend/frontend suites, lint, and frontend production build passed. The local MySQL migration added both columns, and read-only daily/weekly/monthly report and dashboard calls returned HTTP-equivalent 200. No employee was archived for testing. The production database has not been migrated for this feature, and this implementation has not been deployed.
+
+## Employee archival local checkpoint - 2026-10-08 (Asia/Manila)
+
+- Reviewed the pending archive/restore routes, transaction, migration, scanner guards, directory controls, and historical reporting filters. No additional code changes were needed.
+- Re-ran the backend suite (29 passed), frontend suite (14 passed), frontend lint, production build, and `git diff --check`; all passed. The build retains its existing large admin chunk warning.
+- Production migration, deployment, and a live archive/restore action remain unverified.

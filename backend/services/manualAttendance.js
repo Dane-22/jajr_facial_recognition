@@ -77,8 +77,9 @@ async function recordManualAttendance({ adminId, userId, mode, at, outAt, siteId
     await connection.beginTransaction();
     const [admins] = await connection.query('SELECT position, username FROM admins WHERE id = ? FOR UPDATE', [adminId]);
     if (admins[0]?.position !== 'Superadmin') throw new AttendanceError(403, 'Superadmin access required.');
-    const [users] = await connection.query('SELECT id, name, role FROM users WHERE id = ? FOR UPDATE', [employeeId]);
+    const [users] = await connection.query('SELECT id, name, role, is_active FROM users WHERE id = ? FOR UPDATE', [employeeId]);
     if (!users.length) throw new AttendanceError(404, 'Employee not found.');
+    if (Number(users[0].is_active) === 0) throw new AttendanceError(409, 'Restore this employee before recording attendance.');
     const [sessions] = await connection.query('SELECT user_id, site_id, in_log_id FROM employee_site_sessions WHERE user_id = ?', [employeeId]);
     const session = sessions[0];
     const [rows] = await connection.query(`SELECT id, status,
@@ -163,8 +164,9 @@ async function transferOpenSession({ adminId, userId, fromSiteId, toSiteId, reas
     await connection.beginTransaction();
     const [admins] = await connection.query('SELECT position, username FROM admins WHERE id = ? FOR UPDATE', [adminId]);
     if (admins[0]?.position !== 'Superadmin') throw new AttendanceError(403, 'Superadmin access required.');
-    const [users] = await connection.query('SELECT id, name, role FROM users WHERE id = ? FOR UPDATE', [employeeId]);
+    const [users] = await connection.query('SELECT id, name, role, is_active FROM users WHERE id = ? FOR UPDATE', [employeeId]);
     if (!users.length) throw new AttendanceError(404, 'Employee not found.');
+    if (Number(users[0].is_active) === 0) throw new AttendanceError(409, 'Restore this employee before transferring a shift.');
     const [sessions] = await connection.query(`SELECT ss.site_id, ss.in_log_id, s.name AS from_site_name,
       DATE_FORMAT(l.timestamp, '%Y-%m-%d %H:%i:%s') AS started_at_utc
       FROM employee_site_sessions ss JOIN sites s ON s.id = ss.site_id

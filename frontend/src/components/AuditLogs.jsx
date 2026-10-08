@@ -289,6 +289,8 @@ const AuditLogs = () => {
             <option value="CREATE">Create</option>
             <option value="UPDATE">Update</option>
             <option value="DELETE">Delete</option>
+            <option value="ARCHIVE">Archive employee</option>
+            <option value="RESTORE">Restore employee</option>
             <option value="CHECK_IN">Check-in</option>
             <option value="CHECK_OUT">Check-out</option>
             <option value="MANUAL_SITE_TRANSFER">Manual site transfer</option>

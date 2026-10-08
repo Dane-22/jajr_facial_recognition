@@ -86,7 +86,7 @@ const AttendanceAudit = () => {
 
   const fetchUsers = async (token) => {
     try {
-      const response = await fetch(`${API_URL}/users`, {
+      const response = await fetch(`${API_URL}/employees?status=all`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -94,7 +94,7 @@ const AttendanceAudit = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data || []);
+        setUsers(data.employees || []);
       }
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -516,7 +516,7 @@ const AttendanceAudit = () => {
                     <option value="">All Employees</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.name}
+                        {user.name}{user.is_active ? '' : ' (archived)'}
                       </option>
                     ))}
                   </select>

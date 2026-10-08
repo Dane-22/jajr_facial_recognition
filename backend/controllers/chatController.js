@@ -128,7 +128,7 @@ const getRoomMessages = async (req, res) => {
 const getAvailableParticipants = async (req, res) => {
   try {
     const [admins] = await pool.query(`SELECT id, username as name, position as role, 'admin' as type FROM admins`);
-    const [employees] = await pool.query(`SELECT id, name, role, 'employee' as type FROM users`);
+    const [employees] = await pool.query(`SELECT id, name, role, 'employee' as type FROM users WHERE is_active = 1`);
 
     return res.json({
       success: true,

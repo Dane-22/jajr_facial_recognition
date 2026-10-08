@@ -43,7 +43,8 @@ const registerUser = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, role, face_descriptor, created_at FROM users');
+    await pool.ready;
+    const [rows] = await pool.query('SELECT id, name, role, face_descriptor, created_at FROM users WHERE is_active = 1');
 
     const users = rows.map(user => {
       let descriptor = user.face_descriptor;

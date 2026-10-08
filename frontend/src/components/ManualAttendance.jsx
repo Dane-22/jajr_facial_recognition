@@ -125,9 +125,10 @@ export default function ManualAttendance() {
             <h3 className="break-words text-base font-bold text-slate-900">{employee.name}</h3>
             <p className="text-sm text-slate-600">Employee #{employee.id}{employee.role ? ` · ${employee.role}` : ''}</p>
           </div>
-          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${employee.session
-            ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-            {employee.session ? 'Timed in' : 'No open time-in'}
+          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${employee.is_active === 0
+            ? 'bg-slate-100 text-slate-700' : employee.session
+              ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+            {employee.is_active === 0 ? 'Archived' : employee.session ? 'Timed in' : 'No open time-in'}
           </span>
         </div>
         {employee.session && <p className="mt-2 text-sm text-slate-700">{employee.session.site_name} · Since {formatManila(employee.session.started_at)}</p>}
@@ -136,11 +137,12 @@ export default function ManualAttendance() {
           {expandedId === employee.id ? 'Close attendance details' : 'Manage attendance'}
         </button>
         {expandedId === employee.id && <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+          {employee.is_active === 0 && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This employee is archived. Restore them in Employee Directory before recording attendance.</p>}
           <fieldset className="space-y-2"><legend className="text-sm font-bold">Action</legend>
             {[['IN', 'Time in'], ['OUT', 'Time out'], ['PAIR', 'Historical pair'], ['TRANSFER', 'Transfer site']].map(([value, label]) =>
               <label key={value} className="inline-flex min-h-11 items-center gap-2 mr-4 text-sm">
                 <input type="radio" name={`mode-${employee.id}`} value={value} checked={mode === value}
-                  disabled={(value === 'IN' && Boolean(employee.session)) ||
+                  disabled={employee.is_active === 0 || (value === 'IN' && Boolean(employee.session)) ||
                     ((value === 'OUT' || value === 'TRANSFER') && !employee.session)}
                   onChange={() => { setMode(value); setSiteId(''); setAt(manilaInputNow()); setReviewing(false); }} />{label}
               </label>)}
@@ -169,7 +171,7 @@ export default function ManualAttendance() {
               onChange={event => { setReason(event.target.value); setReviewing(false); }}
               className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-base" />
           </label>
-          {!reviewing ? <button type="button" disabled={busy || (mode !== 'TRANSFER' && !isCompleteTime(at)) || (mode === 'PAIR' && !isCompleteTime(outAt)) ||
+          {!reviewing ? <button type="button" disabled={employee.is_active === 0 || busy || (mode !== 'TRANSFER' && !isCompleteTime(at)) || (mode === 'PAIR' && !isCompleteTime(outAt)) ||
               (mode !== 'OUT' && !siteId) || reason.trim().length < 10}
             onClick={() => { setError(''); setReviewing(true); }}
             className="min-h-11 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">

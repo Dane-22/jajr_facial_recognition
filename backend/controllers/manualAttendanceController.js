@@ -18,7 +18,7 @@ const withUtcConnection = async work => {
 async function listEmployees(_req, res) {
   try {
     const result = await withUtcConnection(async connection => {
-      const [employees] = await connection.query('SELECT id, name, role FROM users ORDER BY name, id');
+      const [employees] = await connection.query('SELECT id, name, role, is_active FROM users ORDER BY name, id');
       const [sites] = await connection.query(`SELECT es.user_id, s.id, s.name FROM employee_sites es
         JOIN sites s ON s.id = es.site_id WHERE s.active = 1 ORDER BY s.name`);
       const [sessions] = await connection.query(`SELECT ss.user_id, ss.site_id, ss.in_log_id, s.name AS site_name,

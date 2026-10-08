@@ -2,6 +2,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 const { migrateSites } = require('../utils/siteMigration');
 const { migrateManualAttendance } = require('../utils/manualAttendanceMigration');
+const { migrateEmployeeArchive } = require('../utils/employeeArchiveMigration');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -124,6 +125,7 @@ const runMigrations = async () => {
   // Site rules are required for every attendance scan. Fail startup if this migration fails.
   await migrateSites(pool);
   await migrateManualAttendance(pool);
+  await migrateEmployeeArchive(pool);
 };
 
 pool.ready = runMigrations();
