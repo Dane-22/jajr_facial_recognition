@@ -5,6 +5,8 @@ const { verifyAdminToken } = require('../middleware/authMiddleware');
 
 // Get dashboard statistics and chart data
 router.get('/stats', verifyAdminToken, getDashboardStats);
+const salary = require('../controllers/salaryController');
+router.get('/attendance-timing', verifyAdminToken, salary.access, salary.timing);
 
 // Get calendar activity data
 router.get('/calendar', verifyAdminToken, getCalendarActivity);

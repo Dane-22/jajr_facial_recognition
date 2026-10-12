@@ -1,0 +1,15 @@
+const router = require('express').Router();
+const { verifyAdminToken } = require('../middleware/authMiddleware');
+const { requireSuperadmin } = require('../middleware/requireSuperadmin');
+const c = require('../controllers/salaryController');
+router.use(verifyAdminToken, c.access);
+router.get('/rates', c.getRates);
+router.post('/rates', requireSuperadmin, c.saveRate);
+router.post('/preview', c.preview);
+router.post('/export', c.exportPayroll);
+router.get('/runs', c.history);
+router.post('/runs', requireSuperadmin, c.saveRun);
+router.get('/runs/:id/export', c.exportPayroll);
+router.get('/runs/:id', c.getRun);
+router.post('/runs/:id/finalize', requireSuperadmin, c.finalize);
+module.exports = router;

@@ -1,6 +1,6 @@
 # Worklog — 2026-09-29 (Asia/Manila)
 
-## Current status — 2026-10-08 (Asia/Manila)
+## Current status — 2026-10-12 (Asia/Manila)
 
 This worklog is chronological. Earlier statements such as “not deployed” describe the state at that time; the latest status is below.
 
@@ -17,8 +17,11 @@ This worklog is chronological. Earlier statements such as “not deployed” des
 | Manual Attendance and open-shift site transfer | Commit `bac200d` is deployed. The production transfer table and Manual Attendance `admin_username` column were verified after startup. A live authenticated transfer and scanner time-out at the destination are still pending. |
 | Employee archival | Deployed with commit `1205c74`. Production has the `users.is_active` and `users.archived_at` columns. A live archive/restore action remains unverified. |
 | Portrait guide and site rejection messages | Deployed with commit `1205c74`; the public kiosk asset contains the new time-out boundary context. Physical-device visual placement and attendance behavior remain unverified. The SUNDARA incident remains open pending production evidence. |
+| SUNDARA/PANICSICAN scan investigation | **Open; root cause unconfirmed.** The reported 3,504 m rejection and 99 m accuracy do not establish a PANICSICAN attendance write or a GPS fault. The affected employee's matched ID, historical open session, production site configuration, original coordinates, and rejected request's write outcome have not been independently verified. See [issue.md](issue.md). |
+| Attendance-based salary and payroll | Implemented in the local working tree: PHP semi-monthly calculation, employee rate setup, preview/CSV export, saved drafts/finalized snapshots, Admin viewing and Superadmin writes/corrections. Local salary tables and rollback-only MySQL checks passed. Production deployment has not been performed. |
+| Early-arrival and after-hours charts | Added responsive dashboard charts and a table for unpaid attendance outside the employee's schedule. Desktop/mobile browser checks passed using API fixtures; production behavior is unverified. |
 
-Open work remains in the admin implementation plan: timestamp/timezone reconciliation, production validation of employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. User screenshot files were not committed.
+Open work remains in the admin implementation plan: timestamp/timezone reconciliation, production validation of employee archival, server-side attendance audit pagination/export, staging mutation and role tests, and device-based scan latency measurement. The SUNDARA evidence checklist in [issue.md](issue.md) remains outstanding. User screenshot files were not committed.
 
 ## Scope and status
 
@@ -326,9 +329,57 @@ The user's screenshot additions and earlier screenshot deletions were left untou
 - Re-ran the backend suite (29 passed), frontend suite (14 passed), frontend lint, production build, and `git diff --check`; all passed. The build retains its existing large admin chunk warning.
 - Production migration, deployment, and a live archive/restore action remain unverified.
 
+## Portrait guide and SUNDARA scan investigation - 2026-10-08 (Asia/Manila)
+
+- Reviewed and documented the old horizontal kiosk guide, then implemented the agreed 3:4 portrait oval inside the unchanged 4:3 preview. Its size follows the visible video area when `object-contain` letterboxes a stream. It remains visual guidance; capture still sends the full frame. The scan timer and “Center your face in the oval” instruction moved below the preview. Updated `docs/documentation.md` and the implementation plan. Mobile and enrollment camera paths were not changed.
+- Investigated the report that an employee physically at SUNDARA received a rejection mentioning about 3,504 m from PANICSICAN with 99 m reported accuracy. The separate Main Office manual time-in screenshot belonged to the user and was excluded from this incident. Code review confirmed that an open session determines `OUT` and requires its site boundary; a new `IN` considers active assigned sites and reports the nearest boundary when none contains the submitted point. PANICSICAN in that message is a required or comparison site, not a detected physical site. The current rejection path rolls back before inserting attendance, but the specific production request was not traceable from available evidence.
+- Used read-only public endpoint checks and source review; unauthenticated protected endpoints returned 401. Initial SSH access was unavailable, so no production employee assignment, SUNDARA pin/radius, historical session, matched numeric ID, original coordinates, or rejected-request row was confirmed. The local database lacked SUNDARA but was explicitly **not** treated as production evidence. `issue.md` separates read-only diagnostics from controlled live scans, revalidates the September 30 findings, and lists the exact production evidence still needed.
+- Clarified server and kiosk messages while retaining HTTP 403, the existing `outside_site_boundary` reason, geofence decisions, and fresh-location retry. A new boundary context distinguishes the required open-session time-out site from the closest assigned boundary; missing/inactive assignments have distinct reasons. The mobile app displays the server's error text. Focused tests covered the messages, overlapping boundaries, rollback without attendance/session writes, and the next web location request using `maximumAge: 0`. No radii, face threshold, or attendance data were changed for this incident.
+
 ## Portrait guide, site messages, and archival production release - 2026-10-08 (Asia/Manila)
 
 - Pushed `8728d97` (employee archival) and `1205c74` (portrait guide, site rejection messages, and investigation docs) to GitHub `main`. Pre-release local checks passed: 34 backend tests, 16 frontend tests, frontend lint, production build, and staged diff check.
 - Confirmed the VPS was at `bac200d` with all four Compose services running and only its pre-existing untracked nested `jajr_facial_recognition/` directory. Verified Compose config and 71 GB available disk space. Created `/root/jajr-backup-20261008-132222.sql.gz` before deployment using `mysqldump --no-tablespaces --single-transaction --quick`. The gzip was nonempty, passed `gzip -t`, ended with the dump completion marker, and was restricted to root (mode 600).
 - Fast-forwarded the VPS checkout to `1205c74`, built backend/frontend images, and recreated only those two containers. MySQL and Redis were not restarted. Backend startup reported Redis connected and face models ready. The production `users` table has `is_active` and `archived_at` columns.
 - Public homepage, settings API, and `CameraFeed-DUjzjgc3.js` returned HTTP 200; the asset contains `required_time_out_site`. Settings returned `geofencing_enabled: true`, and unauthenticated `/api/admin/sites` returned 401. No attendance scan or site assignment was changed for testing. The affected SUNDARA request, production pin/assignment, and physical camera view remain unverified.
+- Pushed documentation-only commit `5950baa` with the deployment evidence and open-incident status, then fast-forwarded the VPS checkout to it without rebuilding containers. The running application images remain those built from `1205c74`. Removed the one-time SSH public key from VPS `authorized_keys` and deleted its private/public files from Windows Temp. The personal `image.png` remained untracked and was not pushed.
+
+## Attendance-based salary implementation - 2026-10-12 (Asia/Manila)
+
+### Project review and confirmed rules
+
+- Fetched GitHub updates; local `main` was already aligned with `origin/main` at `5950baa`. Existing local worklog changes and untracked `image.png` were preserved.
+- Reviewed the web/backend/mobile structure, employee and attendance flows, manual corrections, site transfers, reports, authentication, migrations, deployment configuration, and tests for salary integration. Replaced the root `plan.md` with the salary plan and preserved its previous content in [the scanning-plan archive](docs/FACE_SCANNING_PRODUCTION_RELIABILITY_PLAN_ARCHIVED_2026-10-12.md).
+- Confirmed PHP daily-rate payroll with paydays every 15th and last calendar day of the month. Initial attendance periods are 1st-15th and 16th-month end; a different payday-to-attendance cutoff mapping remains unspecified.
+- Engineers work 07:00-16:00; other positions work 08:00-17:00. Lunch 12:00-13:00 is unpaid, leaving eight regular working hours. Arrival through the 15-minute grace cutoff receives scheduled-start credit and no lateness deduction. Once grace is exceeded, deduct PHP 1 per minute counted from scheduled start: 07:20/08:20 means 20 minutes, not five.
+- Confirmed full-day/half-day/prorated thresholds: eight qualifying hours earns the daily rate; four to under eight earns half the rate; under four earns `(daily rate / 8) x qualifying hours`. Late arrival followed by attendance through scheduled end retains full daily base pay minus lateness. Late arrival combined with early departure uses the attendance threshold plus lateness deduction. At PHP 600/day, Engineer 07:20-16:00 earns PHP 580, and 07:20-12:00 earns PHP 280.
+- Early arrival and late departure are excluded from salary and displayed in dashboard charts. Missing IN/OUT requires Superadmin correction before finalization. Admins and Superadmin can view salaries; this release reserves rate setup, draft saving, and finalization for Superadmin. Preview, export, and saved finalized payroll were all included.
+
+### Implementation
+
+- Added additive startup migrations for `employee_salary_rates`, `employee_salary_schedules`, and `payroll_runs`; verified all three tables in local MySQL. Employee create/update flows maintain effective-dated schedule history. Existing employees receive a current-role historical baseline that must be reviewed before old-period payroll.
+- Added deterministic backend event pairing, lunch-overlap exclusion, schedule clipping, grace handling, effective rates/schedules, exact-cent calculations, lateness deduction, and separate base/deduction/salary results. Payroll queries retrieve the complete bounded period and prior-event context rather than the existing 1,000-event attendance endpoint.
+- Added authenticated salary APIs for rate history/setup, preview, CSV export, saved payroll history, drafts, and finalization. Operations verify current database roles; draft save/finalization use transactions, employee locks, source hashes, audit entries, and unique semi-monthly periods. Finalization rejects stale data, incomplete attendance, missing rates, and unresolved policy exceptions.
+- Saved runs contain attendance/rate/schedule/policy evidence and totals in a JSON snapshot. Finalized exports read the stored snapshot; finalized periods cannot be overwritten. Payment tracking and amendment workflows are not included in this release.
+- Added the responsive Salary page with period selectors, summary cards, desktop tables/mobile cards, search/pagination, employee breakdown, daily rate form, correction navigation, CSV export, and payroll history. Attendance events mark affected previews stale, while server revision checks also protect save/export/finalization.
+- Added dashboard early-arrival/after-hours charts by date and employee, with semi-monthly filters and an accessible table. Charts use valid paired attendance, omit invalid/incomplete shifts, and label outside-schedule minutes as unpaid; they do not classify them as approved overtime.
+- Updated [Documentation.md](Documentation.md), [plan.md](plan.md), and [salary implementation/validation notes](docs/SALARY_IMPLEMENTATION_AND_VALIDATION_2026-10-12.md). The unrelated pasted Linux/Prisma password-reset command was not executed; no administrator password was changed.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Backend suite | Passed: 50 tests, including calculation boundaries, current role checks, stale drafts, finalization rejection, immutable exports, and additive migrations. |
+| Frontend suite | Passed: 21 tests, including salary role controls, effective-rate setup, cutoff dates, request races, and attendance-triggered stale previews. |
+| Salary browser checks | Passed: four scenarios using installed Microsoft Edge and API fixtures, including desktop, 390px/320px layouts, confirmed pay breakdowns, Admin controls, and chart/table data. |
+| Local MySQL integration | Passed: rate/schedule queries, PHP 580/PHP 280 examples, separate employee IDs with duplicate names, and complete retrieval of 1,002 attendance events. Fixture writes were rolled back; salary schema remains installed locally. |
+| Frontend production build | Passed. Existing large admin-bundle warning remains. |
+| `git diff --check` | Passed; Windows line-ending conversion notices only. |
+| Git commit/push and production deployment | Not performed for the salary implementation. Browser fixture checks do not verify production payroll data or live device scans. |
+
+### Remaining operating decisions and release work
+
+- Configure actual daily rates and effective dates, and review historical employee positions before calculating real payroll. The initial schedule baseline does not reconstruct past position changes; historical schedule correction has no dedicated UI.
+- Fractional late-minute rounding, split shifts, overnight shifts, afternoon arrivals, and deduction exceeding earnings still require approved rules. These cases remain visible review exceptions and block finalization rather than receiving silently guessed final pay. Money uses nearest-cent, half-up daily rounding as a documented implementation default.
+- Finalize only after the entire selected attendance period has ended in Manila time and all exceptions are resolved. The existing Manual Attendance 30-day correction window remains unchanged.
+- Review staging payroll against representative real attendance and rates, then make a verified database backup before any approved production migration/deployment. Production salary APIs, permissions, historical schedules, exports, and charts remain unverified. Earlier SUNDARA evidence and other open production checks remain outstanding.

@@ -1,6 +1,12 @@
 # JAJR facial attendance: project documentation
 
-Updated 2026-09-30 for the implementation in this working tree. [issue.md](issue.md) and [proposal.md](proposal.md) record the original investigation and proposed fixes; some descriptions there refer to the old code. [plan.md](plan.md) defines the validation gates. No production deployment or physical-phone validation has been performed for these changes.
+Updated with salary implementation on 2026-10-12. [issue.md](issue.md) and [proposal.md](proposal.md) record the original scanning investigation; some descriptions refer to older code. The former scanning plan is preserved in [the archived plan](docs/FACE_SCANNING_PRODUCTION_RELIABILITY_PLAN_ARCHIVED_2026-10-12.md). [plan.md](plan.md) now documents attendance-based salary. No production deployment has been performed for these changes.
+
+## Salary and payroll
+
+The Admin Portal includes a Salary page for PHP daily-rate payroll, preview/CSV export, and saved finalized records. Admins and Superadmin can view/preview/export; Superadmin configures effective-dated rates, saves drafts, corrects missing attendance, and finalizes. Engineer hours are 07:00-16:00; other positions are 08:00-17:00, excluding lunch 12:00-13:00. Arrival through the 15-minute grace cutoff receives start-time credit. Beyond grace, lateness is PHP 1/minute from scheduled start. Late arrival followed by attendance through scheduled end retains full daily base pay minus deduction; early checkout uses full/half-day/prorated thresholds. Early and after-hours attendance is unpaid and charted on the dashboard.
+
+The initial periods are 1st-15th and 16th-month end. Missing IN/OUT and unresolved policy cases block finalization. Finalized snapshots do not change when later rates or attendance change. Backend startup creates salary tables through additive migrations. See [salary operating instructions and validation](docs/SALARY_IMPLEMENTATION_AND_VALIDATION_2026-10-12.md) before entering rates or finalizing a period.
 
 ## Repository map
 

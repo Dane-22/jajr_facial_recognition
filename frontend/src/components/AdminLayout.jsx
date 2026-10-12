@@ -10,10 +10,12 @@ import AIChatWidget from './AIChatWidget';
 import Settings from './Settings';
 import AdminManagement from './AdminManagement';
 import ManualAttendance from './ManualAttendance';
+import SalaryPage from './SalaryPage';
 
 const AdminLayout = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [correctionEmployeeId, setCorrectionEmployeeId] = useState(null);
   const navigate = useNavigate();
   const isSuperadmin = (() => {
     try {
@@ -54,6 +56,7 @@ const AdminLayout = () => {
       ),
     },
     ...(isSuperadmin ? [{ id: 'manual-attendance', label: 'Manual Attendance', icon: <span aria-hidden="true">◷</span> }] : []),
+    { id: 'salary', label: 'Salary', icon: <span aria-hidden="true">₱</span> },
     {
       id: 'admin-management',
       label: 'Admin Management',
@@ -132,10 +135,12 @@ const AdminLayout = () => {
         return <AttendanceAudit />;
       case 'reports':
         return <AttendanceReports />;
+      case 'salary':
+        return <SalaryPage isSuperadmin={isSuperadmin} onCorrectAttendance={employeeId => { setCorrectionEmployeeId(employeeId); handleNavClick('manual-attendance'); }} />;
       case 'admin-management':
         return <AdminManagement />;
       case 'manual-attendance':
-        return isSuperadmin ? <ManualAttendance /> : <DashboardCharts />;
+        return isSuperadmin ? <ManualAttendance initialEmployeeId={correctionEmployeeId} /> : <DashboardCharts />;
       case 'audit-logs':
         return <AuditLogs />;
       case 'settings':

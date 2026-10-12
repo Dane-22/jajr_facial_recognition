@@ -3,6 +3,7 @@ const { encrypt, decrypt } = require('../utils/crypto');
 
 const registerUser = async (req, res) => {
   try {
+    await pool.ready;
     const { name, role, faceDescriptor } = req.body;
 
     if (!name || !role || !faceDescriptor) {
@@ -18,6 +19,8 @@ const registerUser = async (req, res) => {
       await connection.beginTransaction();
       [result] = await connection.query('INSERT INTO users (name, role, face_descriptor) VALUES (?, ?, ?)',
         [name, role, encryptedDescriptor]);
+      await connection.query(`INSERT INTO employee_salary_schedules (user_id, role, effective_from)
+        VALUES (?, ?, DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)))`, [result.insertId, role]);
       const [assignment] = await connection.query(`INSERT INTO employee_sites (user_id, site_id)
         SELECT ?, id FROM sites WHERE site_key = 'MAIN_OFFICE'`, [result.insertId]);
       if (!assignment.affectedRows) throw new Error('Main Office site is missing.');

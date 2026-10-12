@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import useSocket from '../hooks/useSocket';
 import RecordCard from './UI/RecordCard';
+import AttendanceTimingCharts from './AttendanceTimingCharts';
 
 const API_URL = '/api';
 
@@ -597,6 +598,7 @@ const DashboardCharts = () => {
         </div>
 
         <ActivityCalendar t={t} onDateClick={handleDateClick} />
+        <AttendanceTimingCharts refreshKey={lastActivity?.id} />
 
       </div>
 

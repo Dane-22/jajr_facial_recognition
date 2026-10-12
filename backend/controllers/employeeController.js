@@ -139,6 +139,8 @@ const createEmployee = async (req, res) => {
       await connection.beginTransaction();
       [result] = await connection.query('INSERT INTO users (name, role, face_descriptor) VALUES (?, ?, ?)',
         [name, role, encryptedDescriptor]);
+      await connection.query(`INSERT INTO employee_salary_schedules (user_id, role, effective_from)
+        VALUES (?, ?, DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)))`, [result.insertId, role]);
       const [assignment] = await connection.query(`INSERT INTO employee_sites (user_id, site_id)
         SELECT ?, id FROM sites WHERE site_key = 'MAIN_OFFICE'`, [result.insertId]);
       if (!assignment.affectedRows) throw new Error('Main Office site is missing.');
@@ -209,11 +211,27 @@ const updateEmployee = async (req, res) => {
       encryptedDescriptor = encrypt(faceDescriptorJson);
     }
 
-    const [updateResult] = await pool.query(
-      'UPDATE users SET name = ?, role = ?, face_descriptor = COALESCE(?, face_descriptor) WHERE id = ? AND is_active = 1',
-      [name, role, encryptedDescriptor, id]
-    );
-    if (!updateResult.affectedRows) return res.status(409).json({ error: 'Restore this employee before editing.' });
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [locked] = await connection.query('SELECT role, is_active FROM users WHERE id = ? FOR UPDATE', [id]);
+      if (!locked[0]?.is_active) {
+        await connection.rollback();
+        return res.status(409).json({ error: 'Restore this employee before editing.' });
+      }
+      await connection.query(
+        'UPDATE users SET name = ?, role = ?, face_descriptor = COALESCE(?, face_descriptor) WHERE id = ? AND is_active = 1',
+        [name, role, encryptedDescriptor, id]);
+      if (locked[0].role !== role) {
+        await connection.query(`INSERT INTO employee_salary_schedules (user_id, role, effective_from)
+          VALUES (?, ?, DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)))
+          ON DUPLICATE KEY UPDATE role = VALUES(role)`, [id, role]);
+      }
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback().catch(() => {});
+      throw error;
+    } finally { connection.release(); }
 
     const [updatedEmployee] = await pool.query(
       'SELECT id, name, role, created_at, is_active, archived_at FROM users WHERE id = ?',

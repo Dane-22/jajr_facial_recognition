@@ -3,6 +3,7 @@ require('dotenv').config();
 const { migrateSites } = require('../utils/siteMigration');
 const { migrateManualAttendance } = require('../utils/manualAttendanceMigration');
 const { migrateEmployeeArchive } = require('../utils/employeeArchiveMigration');
+const { migrateSalary } = require('../utils/salaryMigration');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -126,6 +127,7 @@ const runMigrations = async () => {
   await migrateSites(pool);
   await migrateManualAttendance(pool);
   await migrateEmployeeArchive(pool);
+  await migrateSalary(pool);
 };
 
 pool.ready = runMigrations();

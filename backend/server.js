@@ -209,6 +209,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/salary', require('./routes/salaryRoutes'));
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/assistant', assistantRoutes);

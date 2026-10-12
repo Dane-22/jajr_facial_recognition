@@ -24,9 +24,9 @@ function ManilaDateTimeFields({ label, value, onChange }) {
   </fieldset>;
 }
 
-export default function ManualAttendance() {
+export default function ManualAttendance({ initialEmployeeId = null }) {
   const [employees, setEmployees] = useState([]);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialEmployeeId ? String(initialEmployeeId) : '');
   const [expandedId, setExpandedId] = useState(null);
   const [history, setHistory] = useState([]);
   const [mode, setMode] = useState('IN');
