@@ -21,7 +21,7 @@ const { listEmployees, employeeHistory, createManualAttendance, createSiteTransf
 
 router.post('/login', validateAdminLogin, adminLogin);
 router.get('/all', verifyAdminToken, getAllAdmins);
-router.post('/create', verifyAdminToken, createAdmin);
+router.post('/create', verifyAdminToken, requireSuperadmin, createAdmin);
 router.put('/:id', verifyAdminToken, updateAdmin);
 router.delete('/:id', verifyAdminToken, deleteAdmin);
 

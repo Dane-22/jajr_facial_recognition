@@ -58,8 +58,8 @@ const AdminDashboard = () => {
   };
 
   const getStatusColor = (status) => {
-    return status === 'IN' 
-      ? 'bg-green-500/10 text-green-400 border-green-500/30' 
+    return status === 'IN'
+      ? 'bg-green-500/10 text-green-400 border-green-500/30'
       : 'bg-red-500/10 text-red-400 border-red-500/30';
   };
 
@@ -99,11 +99,7 @@ const AdminDashboard = () => {
                 <p className="text-slate-400 text-sm mb-1">Total Logs</p>
                 <p className="text-3xl font-bold text-white">{logs.length}</p>
               </div>
-              <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
+
             </div>
           </div>
 
@@ -115,11 +111,7 @@ const AdminDashboard = () => {
                   {logs.filter(log => log.status === 'IN').length}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                </svg>
-              </div>
+
             </div>
           </div>
 
@@ -131,11 +123,7 @@ const AdminDashboard = () => {
                   {logs.filter(log => log.status === 'OUT').length}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                </svg>
-              </div>
+
             </div>
           </div>
         </div>
@@ -154,20 +142,12 @@ const AdminDashboard = () => {
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
+
                 <p className="text-red-400 font-medium">{error}</p>
               </div>
             ) : logs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-12 h-12 bg-slate-700/50 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                </div>
+
                 <p className="text-slate-400 font-medium">No attendance logs found for this date</p>
               </div>
             ) : (

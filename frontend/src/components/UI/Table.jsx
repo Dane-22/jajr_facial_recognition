@@ -1,7 +1,7 @@
 import React from 'react';
 import TableScroll from './TableScroll';
 
-const Table = ({ columns, data, emptyMessage, emptyIcon, mobileCard }) => {
+const Table = ({ columns, data, emptyMessage, mobileCard }) => {
   const getStatusBadge = (status) => {
     if (status === 'IN') {
       return (
@@ -20,11 +20,7 @@ const Table = ({ columns, data, emptyMessage, emptyIcon, mobileCard }) => {
   if (!data || data.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center py-12">
-        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-          <div className="text-slate-400">
-            {emptyIcon}
-          </div>
-        </div>
+
         <p className="text-slate-500 text-sm font-medium">{emptyMessage}</p>
       </div>
     );

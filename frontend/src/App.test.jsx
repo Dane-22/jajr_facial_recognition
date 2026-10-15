@@ -62,4 +62,11 @@ describe('App Component Unit & Integration Tests', () => {
 
     await waitFor(() => expect(window.location.pathname).toBe('/admin/login'));
   });
+
+  it('redirects expired sessions before loading administrator data', async () => {
+    localStorage.setItem('admin_token', `header.${btoa(JSON.stringify({ type: 'admin', exp: 1 }))}.signature`);
+    window.history.pushState({}, '', '/admin/dashboard');
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/admin/login'));
+  });
 });

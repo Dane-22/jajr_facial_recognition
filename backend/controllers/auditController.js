@@ -1,4 +1,15 @@
 const pool = require('../config/db');
+const { dateRangeError, manilaBounds } = require('../utils/reportDates');
+
+const auditWhere = filters => {
+  const params = [];
+  let sql = ' WHERE 1=1';
+  for (const [key, column] of [['action', 'action'], ['entityType', 'entity_type'], ['userId', 'user_id'], ['userType', 'user_type']]) {
+    if (filters[key]) { sql += ' AND audit_logs.' + column + ' = ?'; params.push(filters[key]); }
+  }
+  sql += manilaBounds('audit_logs.timestamp', filters.startDate, filters.endDate, params);
+  return { sql, params };
+};
 
 const getAuditLogs = async (req, res) => {
   try {
@@ -15,46 +26,16 @@ const getAuditLogs = async (req, res) => {
       limit = 50
     } = req.query;
     
-    const offset = (page - 1) * limit;
-    
-    let whereClause = ' WHERE 1=1';
-    const params = [];
-    
-    // Filter by action
-    if (action) {
-      whereClause += ' AND audit_logs.action = ?';
-      params.push(action);
+    const dateError = dateRangeError(startDate, endDate);
+    if (dateError) return res.status(400).json({ error: dateError });
+    const pageNumber = Number(page), pageSize = Number(limit);
+    if (!Number.isSafeInteger(pageNumber) || pageNumber < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 500) {
+      return res.status(400).json({ error: 'Page must be positive and limit must be between 1 and 500.' });
     }
-    
-    // Filter by entity type
-    if (entityType) {
-      whereClause += ' AND audit_logs.entity_type = ?';
-      params.push(entityType);
-    }
-    
-    // Filter by user ID
-    if (userId) {
-      whereClause += ' AND audit_logs.user_id = ?';
-      params.push(userId);
-    }
-    
-    // Filter by user type
-    if (userType) {
-      whereClause += ' AND audit_logs.user_type = ?';
-      params.push(userType);
-    }
-    
-    // Filter by date range
-    if (startDate) {
-      whereClause += ' AND audit_logs.timestamp >= ?';
-      params.push(startDate);
-    }
-    
-    if (endDate) {
-      whereClause += ' AND audit_logs.timestamp < DATE_ADD(?, INTERVAL 1 DAY)';
-      params.push(endDate);
-    }
-    
+    const offset = (pageNumber - 1) * pageSize;
+    if (!Number.isSafeInteger(offset)) return res.status(400).json({ error: 'Invalid page.' });
+    const { sql: whereClause, params } = auditWhere(req.query);
+
     // Get total count
     const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`, params);
     const total = countResult[0].total;
@@ -74,12 +55,12 @@ const getAuditLogs = async (req, res) => {
     const allowedSortFields = ['id', 'action', 'entity_type', 'timestamp', 'user_id'];
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'timestamp';
     const allowedSortOrders = ['ASC', 'DESC'];
-    const sortDirection = allowedSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+    const sortDirection = allowedSortOrders.includes(String(sortOrder).toUpperCase()) ? String(sortOrder).toUpperCase() : 'DESC';
     
-    query += ` ORDER BY audit_logs.${sortField} ${sortDirection}`;
+    query += ` ORDER BY audit_logs.${sortField} ${sortDirection}, audit_logs.id ${sortDirection}`;
     query += ` LIMIT ? OFFSET ?`;
     
-    const queryParams = [...params, parseInt(limit), offset];
+    const queryParams = [...params, pageSize, offset];
     
     const [logs] = await pool.query(query, queryParams);
     
@@ -87,9 +68,9 @@ const getAuditLogs = async (req, res) => {
       logs,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit)
+        page: pageNumber,
+        limit: pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize))
       },
       filters: { action, entityType, userId, userType, startDate, endDate, sortBy, sortOrder }
     });
@@ -130,42 +111,31 @@ const getAuditLogById = async (req, res) => {
 
 const getAuditStats = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
-    
-    let dateFilter = '';
-    const params = [];
-    
-    if (startDate) {
-      dateFilter += ' AND timestamp >= ?';
-      params.push(startDate);
-    }
-    
-    if (endDate) {
-      dateFilter += ' AND timestamp < DATE_ADD(?, INTERVAL 1 DAY)';
-      params.push(endDate);
-    }
-    
+    const dateError = dateRangeError(req.query.startDate, req.query.endDate);
+    if (dateError) return res.status(400).json({ error: dateError });
+    const { sql: whereClause, params } = auditWhere(req.query);
+
     // Get action counts
     const [actionCounts] = await pool.query(
-      `SELECT action, COUNT(*) as count FROM audit_logs WHERE 1=1 ${dateFilter} GROUP BY action`,
+      `SELECT action, COUNT(*) as count FROM audit_logs ${whereClause} GROUP BY action ORDER BY count DESC, action ASC`,
       params
     );
     
     // Get entity type counts
     const [entityCounts] = await pool.query(
-      `SELECT entity_type, COUNT(*) as count FROM audit_logs WHERE 1=1 ${dateFilter} GROUP BY entity_type`,
+      `SELECT entity_type, COUNT(*) as count FROM audit_logs ${whereClause} GROUP BY entity_type`,
       params
     );
     
     // Get user type counts
     const [userTypeCounts] = await pool.query(
-      `SELECT user_type, COUNT(*) as count FROM audit_logs WHERE 1=1 ${dateFilter} GROUP BY user_type`,
+      `SELECT user_type, COUNT(*) as count FROM audit_logs ${whereClause} GROUP BY user_type`,
       params
     );
     
     // Get total logs
     const [totalResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM audit_logs WHERE 1=1 ${dateFilter}`,
+      `SELECT COUNT(*) as total FROM audit_logs ${whereClause}`,
       params
     );
     

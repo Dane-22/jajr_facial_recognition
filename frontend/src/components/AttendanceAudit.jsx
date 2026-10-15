@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import TableScroll from './UI/TableScroll';
 import LocationMapCell from './UI/LocationMapCell';
 import RecordCard from './UI/RecordCard';
 import { serializeCsv } from '../utils/csv';
 import { formatAttendanceTime, attendanceDate } from '../utils/attendanceTime';
+import { auditToday, auditQuickRange, auditCalendarDays } from '../utils/auditCalendar';
 
 const API_URL = '/api';
 
@@ -16,7 +17,7 @@ const AttendanceAudit = () => {
   // Interactive Calendar & Dropdown Filters State
   const [selectedStartDate, setSelectedStartDate] = useState(null); // 'YYYY-MM-DD'
   const [selectedEndDate, setSelectedEndDate] = useState(null);     // 'YYYY-MM-DD'
-  const [viewDate, setViewDate] = useState(new Date());              // Month view state
+  const [viewDate, setViewDate] = useState(auditToday);              // Manila month view
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
 
   const [filters, setFilters] = useState({
@@ -25,21 +26,25 @@ const AttendanceAudit = () => {
   });
 
   const [users, setUsers] = useState([]);
+  const [usersError, setUsersError] = useState('');
 
-  // Pagination & Rate Limiting states
+  // Pagination and export state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
-  const lastFetchRef = useRef(0);
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (token) {
       fetchAllLogs(token);
       fetchUsers(token);
+    } else {
+      setError('Your session has expired. Please sign in again.');
+      setLoading(false);
     }
   }, []);
 
@@ -49,12 +54,6 @@ const AttendanceAudit = () => {
   }, [logs, selectedStartDate, selectedEndDate, filters]);
 
   const fetchAllLogs = async (token) => {
-    const now = Date.now();
-    if (now - lastFetchRef.current < 300) {
-      return;
-    }
-    lastFetchRef.current = now;
-
     setLoading(true);
     setError('');
     try {
@@ -75,9 +74,11 @@ const AttendanceAudit = () => {
       if (response.ok) {
         setLogs(data.logs || []);
       } else {
+        setLogs([]);
         setError(data.error || 'Failed to fetch logs');
       }
     } catch (err) {
+      setLogs([]);
       setError('Network error. Please check your connection.');
     } finally {
       setLoading(false);
@@ -85,6 +86,7 @@ const AttendanceAudit = () => {
   };
 
   const fetchUsers = async (token) => {
+    setUsersError('');
     try {
       const response = await fetch(`${API_URL}/employees?status=all`, {
         headers: {
@@ -95,9 +97,11 @@ const AttendanceAudit = () => {
       if (response.ok) {
         const data = await response.json();
         setUsers(data.employees || []);
+      } else {
+        setUsersError('Unable to load employee filters. Please refresh and try again.');
       }
     } catch (err) {
-      console.error('Error fetching users:', err);
+      setUsersError('Unable to load employee filters. Please refresh and try again.');
     }
   };
 
@@ -131,7 +135,7 @@ const AttendanceAudit = () => {
 
     // Filter by Employee Dropdown
     if (filters.userId) {
-      filtered = filtered.filter(log => log.user_id === parseInt(filters.userId));
+      filtered = filtered.filter(log => String(log.user_id) === String(filters.userId));
     }
 
     // Filter by Status Dropdown
@@ -179,83 +183,27 @@ const AttendanceAudit = () => {
 
   // Quick Shortcut Actions
   const setQuickRange = (rangeType) => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-
-    if (rangeType === 'TODAY') {
-      setSelectedStartDate(todayStr);
-      setSelectedEndDate(null);
-      setViewDate(today);
-    } else if (rangeType === 'YESTERDAY') {
-      const yest = new Date(today);
-      yest.setDate(today.getDate() - 1);
-      const yestStr = yest.toISOString().split('T')[0];
-      setSelectedStartDate(yestStr);
-      setSelectedEndDate(null);
-      setViewDate(yest);
-    } else if (rangeType === 'THIS_WEEK') {
-      const day = today.getDay(); // 0 = Sun
-      const diffToMon = today.getDate() - day + (day === 0 ? -6 : 1);
-      const mon = new Date(today.setDate(diffToMon));
-      const monStr = mon.toISOString().split('T')[0];
-      setSelectedStartDate(monStr);
-      setSelectedEndDate(new Date().toISOString().split('T')[0]);
-      setViewDate(new Date());
-    } else if (rangeType === 'ALL') {
+    if (rangeType === 'ALL') {
       setSelectedStartDate(null);
       setSelectedEndDate(null);
+      return;
     }
+    const range = auditQuickRange(rangeType);
+    setSelectedStartDate(range.start);
+    setSelectedEndDate(range.end);
+    setViewDate(range.viewDate);
   };
 
-  // Calendar Grid Builder Helpers
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-
-  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
-
+  const year = viewDate.getUTCFullYear();
+  const month = viewDate.getUTCMonth();
+  const todayStr = attendanceDate(new Date());
+  const prevMonth = () => setViewDate(new Date(Date.UTC(year, month - 1, 1)));
+  const nextMonth = () => setViewDate(new Date(Date.UTC(year, month + 1, 1)));
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
-
-  const calendarDays = useMemo(() => {
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
-    const prevMonthDays = new Date(year, month, 0).getDate();
-
-    const days = [];
-
-    // Padding from Previous Month
-    for (let x = firstDayIndex; x > 0; x--) {
-      const dayNum = prevMonthDays - x + 1;
-      const prevDate = new Date(year, month - 1, dayNum);
-      const dateStr = prevDate.toISOString().split('T')[0];
-      days.push({ dayNum, dateStr, isCurrentMonth: false });
-    }
-
-    // Days in Current Month
-    for (let i = 1; i <= totalDaysInMonth; i++) {
-      const currDate = new Date(year, month, i);
-      // Format YYYY-MM-DD locally to avoid timezone offsets
-      const yearStr = currDate.getFullYear();
-      const monthStr = String(currDate.getMonth() + 1).padStart(2, '0');
-      const dayStr = String(i).padStart(2, '0');
-      const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
-
-      days.push({ dayNum: i, dateStr, isCurrentMonth: true });
-    }
-
-    // Padding for Next Month grid completion (total 35 or 42 grid cells)
-    const remainingGrid = (42 - days.length) % 7;
-    for (let j = 1; j <= remainingGrid; j++) {
-      const nextDate = new Date(year, month + 1, j);
-      const dateStr = nextDate.toISOString().split('T')[0];
-      days.push({ dayNum: j, dateStr, isCurrentMonth: false });
-    }
-
-    return days;
-  }, [year, month]);
+  const calendarDays = useMemo(() => auditCalendarDays(year, month), [year, month]);
 
   const getStatusColor = (status) => {
     return status === 'IN'
@@ -264,7 +212,15 @@ const AttendanceAudit = () => {
   };
 
   const exportToCSV = () => {
-    let logsToExport = [...logs];
+    setExportError('');
+    if (exportStartDate && exportEndDate && exportStartDate > exportEndDate) {
+      setExportError('End date must be on or after start date.');
+      return;
+    }
+    // Export may override calendar dates, but always respects employee and status.
+    let logsToExport = logs.filter(log =>
+      (!filters.userId || String(log.user_id) === String(filters.userId)) &&
+      (!filters.status || log.status === filters.status));
 
     if (exportStartDate && !exportEndDate) {
       logsToExport = logsToExport.filter(log => {
@@ -282,7 +238,7 @@ const AttendanceAudit = () => {
     }
 
     if (logsToExport.length === 0) {
-      alert('No attendance logs found for the selected date range.');
+      setExportError('No attendance logs match the selected dates, employee, and status.');
       return;
     }
 
@@ -306,7 +262,7 @@ const AttendanceAudit = () => {
     const a = document.createElement('a');
     a.href = url;
 
-    let filename = `attendance_audit_${new Date().toISOString().split('T')[0]}.csv`;
+    let filename = `attendance_audit_${todayStr}.csv`;
     if (exportStartDate && exportEndDate) {
       filename = `attendance_audit_${exportStartDate}_to_${exportEndDate}.csv`;
     } else if (exportStartDate) {
@@ -329,7 +285,7 @@ const AttendanceAudit = () => {
   const currentLogs = filteredLogs.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="min-w-0 bg-white border border-slate-100 rounded-xl shadow-sm">
+    <div className="page-panel min-w-0">
       {/* Compact Integrated Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-3 py-4 sm:px-6 sm:py-5 border-b border-slate-100">
         <div>
@@ -343,22 +299,36 @@ const AttendanceAudit = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
+            disabled={loading}
+            onClick={() => {
+              const token = localStorage.getItem('admin_token');
+              if (!token) {
+                setLogs([]);
+                setError('Your session has expired. Please sign in again.');
+                return;
+              }
+              fetchAllLogs(token);
+              fetchUsers(token);
+            }}
+            className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 disabled:opacity-50">
+            Refresh records
+          </button>
+          <button
             onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
-            📅 {isCalendarExpanded ? 'Collapse Calendar' : 'Show Calendar Filter'}
+             {isCalendarExpanded ? 'Collapse Calendar' : 'Show Calendar Filter'}
           </button>
           <button
             onClick={() => {
+              setExportError('');
               setExportStartDate(selectedStartDate || '');
               setExportEndDate(selectedEndDate || '');
               setIsExportModalOpen(true);
             }}
             data-testid="export-csv-button"
-            disabled={logs.length === 0 || isExporting}
+            disabled={loading || !!error || logs.length === 0 || isExporting}
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+
             {isExporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
@@ -378,27 +348,29 @@ const AttendanceAudit = () => {
                   </h3>
                   {activityDates.size > 0 && (
                     <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-medium">
-                      🟢 Activity indicator active
+                       Activity indicator active
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    aria-label="Previous month"
                     onClick={prevMonth}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
                     title="Previous month">
-                    ◄
+                    Previous
                   </button>
                   <button
-                    onClick={() => setViewDate(new Date())}
+                    onClick={() => setViewDate(auditToday())}
                     className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors">
                     Current Month
                   </button>
                   <button
+                    aria-label="Next month"
                     onClick={nextMonth}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
                     title="Next month">
-                    ►
+                    Next
                   </button>
                 </div>
               </div>
@@ -427,11 +399,13 @@ const AttendanceAudit = () => {
                     dateStr >= selectedStartDate &&
                     dateStr <= selectedEndDate;
 
-                  const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                  const isToday = todayStr === dateStr;
 
                   return (
                     <button
                       key={idx}
+                      aria-label={dateStr}
+                      aria-pressed={selectedStartDate === dateStr || selectedEndDate === dateStr || !!(selectedStartDate && selectedEndDate && dateStr >= selectedStartDate && dateStr <= selectedEndDate)}
                       onClick={() => handleDateClick(dateStr)}
                       className={`
                         relative h-9 rounded-xl text-xs font-medium flex items-center justify-center transition-all duration-150
@@ -480,22 +454,22 @@ const AttendanceAudit = () => {
                   <button
                     onClick={() => setQuickRange('TODAY')}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-colors border border-slate-200 text-left flex items-center justify-between">
-                    <span>📍 Today</span>
+                    <span> Today</span>
                   </button>
                   <button
                     onClick={() => setQuickRange('YESTERDAY')}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-colors border border-slate-200 text-left flex items-center justify-between">
-                    <span>📅 Yesterday</span>
+                    <span> Yesterday</span>
                   </button>
                   <button
                     onClick={() => setQuickRange('THIS_WEEK')}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-colors border border-slate-200 text-left flex items-center justify-between">
-                    <span>🗓️ This Week</span>
+                    <span> This Week</span>
                   </button>
                   <button
                     onClick={() => setQuickRange('ALL')}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition-colors border border-slate-200 text-left flex items-center justify-between">
-                    <span>🔄 All Dates</span>
+                    <span> All Dates</span>
                   </button>
                 </div>
               </div>
@@ -559,6 +533,8 @@ const AttendanceAudit = () => {
         </div>
       )}
 
+      {usersError && <p role="alert" className="px-6 py-3 text-sm text-red-700">{usersError}</p>}
+
       {/* Results Table */}
       <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-5">
         <h3 className="text-sm font-bold text-slate-900 mb-4">Attendance Records</h3>
@@ -569,20 +545,12 @@ const AttendanceAudit = () => {
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
+
             <p className="text-slate-500 text-sm font-medium">{error}</p>
           </div>
         ) : filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            </div>
+
             <p className="text-slate-500 text-sm font-medium">No attendance logs match the selected filter criteria</p>
             <button
               onClick={resetFilters}
@@ -760,12 +728,13 @@ const AttendanceAudit = () => {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900">Export Attendance Data</h3>
-              <button onClick={() => setIsExportModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <button aria-label="Close export" onClick={() => setIsExportModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                Close
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-sm text-slate-600">Select a date range for the CSV export. Leave blank to export all records.</p>
+              <p className="text-sm text-slate-600">Select dates for the CSV export. Employee and status filters remain applied. Leave dates blank to export all dates for these filters.</p>
+              {exportError && <p role="alert" className="text-sm text-red-700">{exportError}</p>}
 
               <div className="space-y-3">
                 <div>
@@ -783,6 +752,7 @@ const AttendanceAudit = () => {
                   <input
                     type="date"
                     id="exportEnd"
+                    min={exportStartDate || undefined}
                     value={exportEndDate}
                     onChange={(e) => setExportEndDate(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all duration-200"

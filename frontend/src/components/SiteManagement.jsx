@@ -15,6 +15,7 @@ export default function SiteManagement({ onNavigate }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState({});
   const [assignmentFeedback, setAssignmentFeedback] = useState({});
 
@@ -29,12 +30,14 @@ export default function SiteManagement({ onNavigate }) {
   };
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const result = await request('sites');
       setData(result);
       setAssignments(Object.fromEntries(result.employees.map(employee => [employee.id, employee.site_ids])));
       setError('');
     } catch (failure) { setError(failure.message); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -57,9 +60,9 @@ export default function SiteManagement({ onNavigate }) {
     setBusy(true); setError(''); setMessage('');
     setAssignmentFeedback(current => ({ ...current, [userId]: { type: 'saving', text: 'Saving...' } }));
     try {
-      await request(`site-assignments/${userId}`, { method: 'PUT', body: JSON.stringify({ siteIds: assignments[userId] || [] }) });
+      const saved = await request(`site-assignments/${userId}`, { method: 'PUT', body: JSON.stringify({ siteIds: assignments[userId] || [] }) });
+      setData(current => ({ ...current, employees: current.employees.map(employee => employee.id === userId ? { ...employee, site_ids: saved.siteIds || assignments[userId] } : employee) }));
       setAssignmentFeedback(current => ({ ...current, [userId]: { type: 'success', text: 'Assignments saved.' } }));
-      await refresh();
     } catch (failure) {
       setAssignmentFeedback(current => ({ ...current, [userId]: { type: 'error', text: failure.message } }));
     }
@@ -76,6 +79,7 @@ export default function SiteManagement({ onNavigate }) {
     <div><h3 className="text-sm font-bold text-slate-900">Sites & geofencing</h3>
       <p className="text-xs text-slate-500 mt-1">Employees can scan within an assigned site's allowed radius. Each time-out must occur at the same site as its time-in.</p></div>
     {error && <p role="alert" className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs">{error}</p>}
+    {loading && <p role="status" className="text-sm text-slate-600">Loading sites and assignments...</p>}
     {message && <p role="status" className="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs">{message}</p>}
     <div className="grid gap-3 md:grid-cols-3">
       {data.sites.map(site => <div key={site.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50">
@@ -95,7 +99,7 @@ export default function SiteManagement({ onNavigate }) {
       </div>
       <label className="text-xs flex items-center gap-2"><input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} /> Active</label>
       {form.latitude && form.longitude && <iframe title="Site map preview" className="w-full h-64 border rounded-xl" src={`https://maps.google.com/maps?q=${encodeURIComponent(`${form.latitude},${form.longitude}`)}&hl=en&z=16&output=embed`} />}
-      <div className="flex gap-3"><button disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs">Save site</button>
+      <div className="flex gap-3"><button disabled={busy || loading} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs">Save site</button>
         {editingId && <button type="button" onClick={() => { setEditingId(null); setForm(emptySite); }} className="text-xs">Cancel edit</button>}</div>
     </form>
     <section className="space-y-3"><h4 className="text-sm font-bold">Employee site assignments</h4>
@@ -120,9 +124,9 @@ export default function SiteManagement({ onNavigate }) {
         className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white">
         Go to Manual Attendance for time-out corrections
       </button>}
-      {!data.sessions.length && <p className="text-xs text-slate-500">No open time-ins.</p>}
+      {!loading && !error && !data.sessions.length && <p className="text-xs text-slate-500">No open time-ins.</p>}
       {data.sessions.map(session => <div key={session.user_id} className="border rounded-xl p-3 text-xs space-y-2">
-        <p><strong>{session.employee_name}</strong> · {session.site_name} · In since {new Date(session.started_at).toLocaleString()}</p>
+        <p><strong>{session.employee_name}</strong> · {session.site_name} · In since {new Date(session.started_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) + ' PHT'}</p>
       </div>)}
     </section>
   </div>;

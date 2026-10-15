@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { dateRangeError } = require('../utils/reportDates');
 const manilaDate = date => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila',
     year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
@@ -14,6 +15,8 @@ const getDailyReport = async (req, res) => {
   try {
     const { date } = req.query;
     const queryDate = date || manilaDate(new Date());
+    const dateError = dateRangeError(queryDate);
+    if (dateError) return res.status(400).json({ error: dateError });
 
     const [report] = await pool.query(
       `SELECT 
@@ -54,6 +57,8 @@ const getWeeklyReport = async (req, res) => {
     // Default to last 7 days if not provided
     const start = startDate || manilaDate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
     const end = endDate || manilaDate(new Date());
+    const dateError = dateRangeError(start, end);
+    if (dateError) return res.status(400).json({ error: dateError });
 
     const [report] = await pool.query(
       `SELECT 
@@ -150,7 +155,7 @@ const getAttendanceStats = async (req, res) => {
         startDate = endDate = manilaDate(now);
         break;
       case 'week':
-        startDate = manilaDate(new Date(now - 7 * 24 * 60 * 60 * 1000));
+        startDate = manilaDate(new Date(now - 6 * 24 * 60 * 60 * 1000));
         endDate = manilaDate(now);
         break;
       case 'month':
@@ -158,7 +163,7 @@ const getAttendanceStats = async (req, res) => {
         endDate = manilaDate(now);
         break;
       default:
-        startDate = manilaDate(new Date(now - 7 * 24 * 60 * 60 * 1000));
+        startDate = manilaDate(new Date(now - 6 * 24 * 60 * 60 * 1000));
         endDate = manilaDate(now);
     }
 
@@ -177,7 +182,7 @@ const getAttendanceStats = async (req, res) => {
       `SELECT 
         users.id,
         users.name,
-        COUNT(DISTINCT ${attendanceDay('attendance_logs.timestamp')}) as days_present
+        COUNT(DISTINCT CASE WHEN attendance_logs.status = 'IN' THEN ${attendanceDay('attendance_logs.timestamp')} END) as days_present
        FROM users
        LEFT JOIN attendance_logs ON users.id = attendance_logs.user_id 
          AND ${attendanceDay('attendance_logs.timestamp')} BETWEEN ? AND ?

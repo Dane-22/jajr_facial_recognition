@@ -24,12 +24,12 @@ const DailyLogs = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isExporting, setIsExporting] = useState(false);
-  const lastFetchRef = useRef(0);
+  const fetchRequestRef = useRef(0);
+  const liveIdsRef = useRef(new Set());
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (token) {
-      fetchDailyLogs(token);
       fetchEmployees(token);
     }
   }, []);
@@ -43,23 +43,32 @@ const DailyLogs = () => {
     if (selectedEmployee && String(data.user_id) !== String(selectedEmployee)) return;
     if (statusFilter && data.status !== statusFilter) return;
 
-    setLogs((prev) => [data, ...prev]);
+    if (liveIdsRef.current.has(data.id)) return;
+    liveIdsRef.current.add(data.id);
     setLiveCount((c) => c + 1);
+    const token = localStorage.getItem('admin_token');
+    if (token) fetchDailyLogs(token);
   }, [selectedDate, selectedEmployee, statusFilter, today]);
 
   useSocket('attendance:new', handleNewAttendance, isLoggedIn);
 
   useEffect(() => {
     setCurrentPage(1);
+    setLiveCount(0);
+    liveIdsRef.current.clear();
     const token = localStorage.getItem('admin_token');
     if (token) {
       fetchDailyLogs(token);
+    } else {
+      setError('Your session has expired. Please sign in again.');
+      setLoading(false);
     }
+    return () => { fetchRequestRef.current++; };
   }, [selectedDate, selectedEmployee, statusFilter, sortBy, sortOrder]);
 
   const fetchEmployees = async (token) => {
     try {
-      const response = await fetch(`${API_URL}/employees`, {
+      const response = await fetch(`${API_URL}/employees?status=all`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -74,12 +83,15 @@ const DailyLogs = () => {
   };
 
   const fetchDailyLogs = async (token) => {
-    const now = Date.now();
-    if (now - lastFetchRef.current < 300) return;
-    lastFetchRef.current = now;
-
+    const requestId = ++fetchRequestRef.current;
     setLoading(true);
+    setLogs([]);
     setError('');
+    if (!selectedDate) {
+      setError('Select an attendance date.');
+      setLoading(false);
+      return;
+    }
     try {
       const params = new URLSearchParams();
       params.append('date', selectedDate);
@@ -97,6 +109,7 @@ const DailyLogs = () => {
         }
       );
 
+      if (requestId !== fetchRequestRef.current) return;
       if (response.status === 429) {
         setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
         setLogs([]);
@@ -104,6 +117,7 @@ const DailyLogs = () => {
       }
 
       const data = await response.json();
+      if (requestId !== fetchRequestRef.current) return;
 
       if (response.ok) {
         setLogs(data.logs || []);
@@ -111,9 +125,9 @@ const DailyLogs = () => {
         setError(data.error || 'Failed to fetch logs');
       }
     } catch (err) {
-      setError('Network error. Please check your connection.');
+      if (requestId === fetchRequestRef.current) setError('Network error. Please check your connection.');
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestRef.current) setLoading(false);
     }
   };
 
@@ -128,7 +142,7 @@ const DailyLogs = () => {
   };
 
   const exportToCSV = () => {
-    if (logs.length === 0 || isExporting) return;
+    if (loading || error || logs.length === 0 || isExporting) return;
 
     setIsExporting(true);
     setTimeout(() => setIsExporting(false), 2000);
@@ -161,13 +175,13 @@ const DailyLogs = () => {
   const outCount = logs.filter(l => l.status === 'OUT').length;
 
   const tableColumns = [
-    { 
-      header: 'ID', 
+    {
+      header: 'ID',
       key: 'id',
       render: (value) => <span className="font-mono text-xs font-bold text-slate-400">#{value}</span>
     },
-    { 
-      header: 'Employee Name', 
+    {
+      header: 'Employee Name',
       key: 'name',
       render: (value) => <span className="font-bold text-slate-900">{value}</span>
     },
@@ -234,12 +248,12 @@ const DailyLogs = () => {
   const currentLogs = logs.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="w-full min-w-0 bg-white rounded-xl border border-slate-100 shadow-sm space-y-4 p-3 sm:space-y-6 sm:p-6">
+    <div className="page-panel w-full min-w-0 space-y-4 p-4 sm:space-y-6 sm:p-6">
       {/* Page Title & Live Sync Status */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <h2 className="text-lg font-bold text-slate-900 mb-1 flex flex-wrap items-center gap-2">
-            📋 Daily Attendance Logs
+             Daily Attendance Logs
             <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium border border-slate-200">
               Real-time Feed
             </span>
@@ -255,9 +269,9 @@ const DailyLogs = () => {
 
           <button
             onClick={exportToCSV}
-            disabled={logs.length === 0 || isExporting}
+            disabled={loading || !!error || logs.length === 0 || isExporting}
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2">
-            <span>📥</span> {isExporting ? 'Exporting...' : 'Export CSV'}
+             {isExporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
       </div>
@@ -265,9 +279,7 @@ const DailyLogs = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-200/60 text-slate-700 flex items-center justify-center font-bold text-base">
-            📊
-          </div>
+
           <div>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Scans Logged</p>
             <p className="text-xl font-extrabold text-slate-900">{totalCount}</p>
@@ -275,9 +287,7 @@ const DailyLogs = () => {
         </div>
 
         <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
-            🟢
-          </div>
+
           <div>
             <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Check INs</p>
             <p className="text-xl font-extrabold text-emerald-900">{inCount}</p>
@@ -285,9 +295,7 @@ const DailyLogs = () => {
         </div>
 
         <div className="bg-rose-50/50 border border-rose-200/60 rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-base">
-            🔴
-          </div>
+
           <div>
             <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Check OUTs</p>
             <p className="text-xl font-extrabold text-rose-900">{outCount}</p>
@@ -304,6 +312,7 @@ const DailyLogs = () => {
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Target Date</label>
               <input
                 type="date"
+                aria-label="Target Date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
@@ -314,6 +323,7 @@ const DailyLogs = () => {
             <div className="min-w-0 max-w-full">
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter Employee</label>
               <select
+                aria-label="Filter Employee"
                 value={selectedEmployee}
                 onChange={(e) => setSelectedEmployee(e.target.value)}
                 className="max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
@@ -330,12 +340,13 @@ const DailyLogs = () => {
             <div className="min-w-0 max-w-full">
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Type</label>
               <select
+                aria-label="Status Type"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
                 <option value="">All Statuses</option>
-                <option value="IN">IN Only 🟢</option>
-                <option value="OUT">OUT Only 🔴</option>
+                <option value="IN">IN Only </option>
+                <option value="OUT">OUT Only </option>
               </select>
             </div>
 
@@ -346,7 +357,7 @@ const DailyLogs = () => {
                 type="button"
                 onClick={() => setSortOrder(sortOrder === 'DESC' ? 'ASC' : 'DESC')}
                 className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors">
-                <span>{sortOrder === 'DESC' ? '🔽 Newest First' : '🔼 Oldest First'}</span>
+                <span>{sortOrder === 'DESC' ? ' Newest First' : ' Oldest First'}</span>
               </button>
             </div>
           </div>
@@ -359,13 +370,13 @@ const DailyLogs = () => {
                   ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
               }`}>
-              📍 Today
+               Today
             </button>
             {(selectedEmployee || statusFilter || selectedDate !== today) && (
               <button
                 onClick={clearFilters}
                 className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-colors">
-                🔄 Reset Filters
+                 Reset Filters
               </button>
             )}
           </div>
@@ -375,7 +386,7 @@ const DailyLogs = () => {
       {/* Error Message */}
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-          <span>⚠️</span> {error}
+           {error}
         </div>
       )}
 

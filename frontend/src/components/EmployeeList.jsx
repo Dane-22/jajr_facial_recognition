@@ -30,7 +30,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const fetchSequenceRef = useRef(0);
-  
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -51,11 +51,13 @@ const EmployeeList = ({ isSuperadmin = false }) => {
   const fetchEmployees = useCallback(async () => {
     const sequence = ++fetchSequenceRef.current;
     setLoading(true);
+    setEmployees([]);
     setError('');
+    if (startDate && endDate && startDate > endDate) { setError('End date must be on or after start date.'); setLoading(false); return; }
     try {
       const token = localStorage.getItem('admin_token');
       const params = new URLSearchParams();
-      
+
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       if (roleFilter) params.append('role', roleFilter);
       params.append('status', statusFilter);
@@ -63,7 +65,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
       if (endDate) params.append('endDate', endDate);
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
-      
+
       const response = await fetch(`/api/employees?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -111,7 +113,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         ]);
-        
+
         if (isMounted) {
           console.log('Face-api models loaded successfully');
           setModelsLoaded(true);
@@ -152,12 +154,16 @@ const EmployeeList = ({ isSuperadmin = false }) => {
 
   // Handle camera startup after video element is mounted
   useEffect(() => {
+    let cancelled = false;
+    let cameraStream;
     if (isCapturing && videoRef.current && !videoRef.current.srcObject) {
       console.log('Video element mounted, starting camera stream...');
       navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, facingMode: 'user' }
       })
       .then(stream => {
+        if (cancelled) { stream.getTracks().forEach(track => track.stop()); return; }
+        cameraStream = stream;
         console.log('Camera stream obtained:', stream);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -165,6 +171,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
         }
       })
       .catch(error => {
+        if (cancelled) return;
         console.error('Error accessing webcam:', error);
         setIsCapturing(false);
         if (error.name === 'NotAllowedError') {
@@ -176,14 +183,18 @@ const EmployeeList = ({ isSuperadmin = false }) => {
         }
       });
     }
+    return () => {
+      cancelled = true;
+      cameraStream?.getTracks().forEach(track => track.stop());
+    };
   }, [isCapturing]);
 
   const stopCamera = useCallback(() => {
+    setIsCapturing(false);
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = videoRef.current.srcObject.getTracks();
       tracks.forEach(track => track.stop());
       videoRef.current.srcObject = null;
-      setIsCapturing(false);
     }
   }, []);
 
@@ -212,7 +223,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
 
       if (detections.length === 1 && detections[0].detection.box.width >= 80) {
         const resizedDetections = faceapi.resizeResults(detections[0], displaySize);
-        
+
         const drawBox = new faceapi.draw.DrawBox(resizedDetections.detection.box, {
           label: 'Face Detected',
           boxColor: '#00ff00',
@@ -286,13 +297,13 @@ const EmployeeList = ({ isSuperadmin = false }) => {
 
     try {
       const token = localStorage.getItem('admin_token');
-      const url = editingEmployee 
+      const url = editingEmployee
         ? `/api/employees/${editingEmployee.id}`
         : '/api/employees';
-      
+
       const method = editingEmployee ? 'PUT' : 'POST';
 
-      const payload = editingEmployee 
+      const payload = editingEmployee
         ? { ...formData, ...(faceDescriptor ? { face_descriptor: faceDescriptor } : {}) }
         : { ...formData, face_descriptor: faceDescriptor };
 
@@ -309,7 +320,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
 
       if (response.ok) {
         if (editingEmployee) {
-          setEmployees(employees.map(emp => 
+          setEmployees(employees.map(emp =>
             emp.id === editingEmployee.id ? data.employee : emp
           ));
         } else {
@@ -374,9 +385,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
+
                 Filters
               </button>
               <div className="relative min-w-0 w-full sm:w-64">
@@ -386,30 +395,22 @@ const EmployeeList = ({ isSuperadmin = false }) => {
                   placeholder="Search employees..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full min-w-0 pl-10 pr-10 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all duration-200"
+                  className="w-full min-w-0 pl-4 pr-20 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all duration-200"
                 />
-                <svg className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+
                 {searchTerm && (
                   <button
                     type="button"
                     onClick={() => setSearchTerm('')}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  >Clear</button>
                 )}
               </div>
               <button
                 data-testid="add-employee-button"
                 onClick={handleCreate}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
+
                 Add Employee
               </button>
             </div>
@@ -501,11 +502,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
               <p className="text-slate-500 text-sm mb-1 font-medium">{statusFilter === 'active' ? 'Active' : statusFilter === 'archived' ? 'Archived' : 'Listed'} Employees</p>
               <p className="text-3xl font-bold text-slate-900">{employees.length}</p>
             </div>
-            <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
+
           </div>
         </div>
 
@@ -517,11 +514,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
                 {[...new Set(employees.map(emp => emp.role))].length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
+
           </div>
         </div>
       </div>
@@ -548,11 +541,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
             </div>
           ) : employees.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
-              <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
+
               <p className="text-slate-700 font-semibold">No employees found</p>
               <p className="text-slate-500 text-sm mt-1">Change the status filter or add an employee.</p>
             </div>
@@ -625,11 +614,9 @@ const EmployeeList = ({ isSuperadmin = false }) => {
                           {employee.is_active && <button
                             data-testid={`edit-employee-${employee.id}`}
                             onClick={() => handleEdit(employee)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors duration-200"
+                            className="p-2 text-teal-700 hover:bg-indigo-50 rounded-lg transition-colors duration-200"
                             title="Edit">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            Edit
                           </button>}
                           {isSuperadmin && <button type="button" data-testid={`status-employee-${employee.id}`}
                             onClick={() => handleStatusChange(employee)} disabled={statusBusyId === employee.id}
@@ -773,7 +760,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
                         type="button"
                         onClick={startCamera}
                         disabled={!modelsLoaded || modelLoadingError}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200">
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200">
                         {modelLoadingError ? 'Model Load Failed' : modelsLoaded ? 'Start Camera' : 'Loading Models...'}
                       </button>
                     ) : (
@@ -821,9 +808,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
                   {faceDescriptor && (
                     <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+
                         <p className="text-green-400 text-sm font-medium">{faceDescriptor.length}/3 samples captured. Look straight, then slightly left and right.</p>
                       </div>
                     </div>
@@ -852,7 +837,7 @@ const EmployeeList = ({ isSuperadmin = false }) => {
                   type="submit"
                   data-testid="save-employee-button"
                   disabled={!editingEmployee && (!faceDescriptor || faceDescriptor.length < 3)}
-                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors duration-200">
+                  className="flex-1 px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors duration-200">
                   {editingEmployee ? 'Update' : 'Create Employee'}
                 </button>
               </div>

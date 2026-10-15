@@ -30,3 +30,16 @@ test('Strict Mode opens one socket after its discarded effect is cleaned up', as
   view.unmount();
   expect(active.disconnect).toHaveBeenCalledTimes(1);
 });
+
+test('events use the latest callback after filters change without reconnecting', () => {
+  const first = vi.fn(), latest = vi.fn();
+  function CurrentListener({ callback }) { useSocket('attendance:new', callback, true); return null; }
+  const view = render(<CurrentListener callback={first} />);
+  const socket = io.mock.results[0].value;
+  const handler = socket.on.mock.calls.find(([event]) => event === 'attendance:new')[1];
+  view.rerender(<CurrentListener callback={latest} />);
+  handler({ id: 10 });
+  expect(first).not.toHaveBeenCalled();
+  expect(latest).toHaveBeenCalledWith({ id: 10 });
+  expect(io).toHaveBeenCalledTimes(1);
+});

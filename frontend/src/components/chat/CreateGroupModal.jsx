@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-const AVATAR_OPTIONS = ['💬', '👥', '💼', '🚀', '💡', '🔥', '⚙️', '📢'];
+const AVATAR_OPTIONS = ['', '', '', '', '', '', '', ''];
 
 const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
   const [groupName, setGroupName] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState('💬');
+  const [selectedAvatar, setSelectedAvatar] = useState('');
   const [participants, setParticipants] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -125,13 +125,13 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Create New Group Chat</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.2rem', cursor: 'pointer' }}>✖</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.2rem', cursor: 'pointer' }}>Close</button>
         </div>
 
         {/* Group Name Input */}
         <div style={{ marginBottom: '14px' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '6px' }}>Group Name</label>
-          <input 
+          <input
             type="text"
             placeholder="e.g., Morning Shift Team, IT Support..."
             value={groupName}
@@ -184,7 +184,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             ) : participants.map((p) => {
               const isSelected = selectedMembers.some(m => m.id === p.id && m.type === p.type);
               return (
-                <div 
+                <div
                   key={`${p.type}-${p.id}`}
                   onClick={() => toggleMember(p)}
                   style={{
@@ -202,7 +202,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
                     <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{p.name}</div>
                     <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{p.displayRole}</div>
                   </div>
-                  <span style={{ fontSize: '1rem' }}>{isSelected ? '✅' : '➕'}</span>
+                  <span style={{ fontSize: '1rem' }}>{isSelected ? '' : ''}</span>
                 </div>
               );
             })}

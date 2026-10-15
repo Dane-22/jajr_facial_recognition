@@ -6,6 +6,9 @@ const API_URL = '/api';
 const Settings = ({ onNavigate }) => {
   const [activeSubTab, setActiveSubTab] = useState('recognition');
   const [loading, setLoading] = useState(false);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
   const [saveError, setSaveError] = useState('');
   const [health, setHealth] = useState(null);
@@ -59,22 +62,25 @@ const Settings = ({ onNavigate }) => {
   };
 
   const fetchSettings = async () => {
+    setSettingsLoading(true); setSettingsReady(false); setSettingsError('');
     try {
       const token = localStorage.getItem('admin_token');
       const response = await fetch(`${API_URL}/admin/settings`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!response.ok) throw new Error('Unable to load settings.');
       if (response.ok) {
         const data = await response.json();
         if (data.settings) {
           const legacyGeoKeys = new Set(['geofencing_enabled', 'office_latitude', 'office_longitude', 'geofence_radius_meters']);
           const generalSettings = Object.fromEntries(Object.entries(data.settings).filter(([key]) => !legacyGeoKeys.has(key)));
-          setSettings(prev => ({ ...prev, ...generalSettings }));
+          setSettings(prev => Object.fromEntries(Object.keys(prev).map(key => [key, String(generalSettings[key] ?? prev[key])])));
+          setSettingsReady(true);
         }
       }
     } catch (err) {
-      console.error('[Settings] Error fetching settings:', err);
-    }
+      setSettingsError('Unable to load saved settings. Retry before editing or saving.');
+    } finally { setSettingsLoading(false); }
   };
 
   const handleSettingsChange = (field, value) => {
@@ -84,6 +90,7 @@ const Settings = ({ onNavigate }) => {
   };
 
   const saveSettings = async () => {
+    if (!settingsReady || settingsLoading || loading) return;
     setLoading(true);
     setSaveSuccess('');
     setSaveError('');
@@ -227,7 +234,7 @@ const Settings = ({ onNavigate }) => {
   };
 
   return (
-    <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
+    <div className="page-panel">
       {/* Header */}
       <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -250,7 +257,7 @@ const Settings = ({ onNavigate }) => {
               ? 'border-slate-900 text-slate-900 bg-white'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}>
-          📸 Facial Recognition
+           Facial Recognition
         </button>
 
         <button
@@ -260,7 +267,7 @@ const Settings = ({ onNavigate }) => {
               ? 'border-slate-900 text-slate-900 bg-white'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}>
-          ⏰ Work Shift Rules
+           Work Shift Rules
         </button>
 
         <button
@@ -270,7 +277,7 @@ const Settings = ({ onNavigate }) => {
               ? 'border-slate-900 text-slate-900 bg-white'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}>
-          🔒 Security & Password
+           Security & Password
         </button>
 
         <button
@@ -280,7 +287,7 @@ const Settings = ({ onNavigate }) => {
               ? 'border-slate-900 text-slate-900 bg-white'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}>
-          🛠️ System Maintenance
+           System Maintenance
         </button>
 
         <button
@@ -290,22 +297,24 @@ const Settings = ({ onNavigate }) => {
               ? 'border-slate-900 text-slate-900 bg-white'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}>
-          📍 Geolocation & Geofencing
+           Geolocation & Geofencing
         </button>
       </div>
 
       {/* Status Feedback Banners */}
       {saveSuccess && (
         <div className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2">
-          <span>✅</span> {saveSuccess}
+           {saveSuccess}
         </div>
       )}
       {saveError && (
         <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex items-center gap-2">
-          <span>⚠️</span> {saveError}
+           {saveError}
         </div>
       )}
 
+      {settingsLoading && <p role="status" className="px-6 pt-4 text-sm">Loading saved settings...</p>}
+      {settingsError && <div role="alert" className="px-6 pt-4 text-sm text-red-700">{settingsError} <button type="button" onClick={fetchSettings} className="underline">Retry settings</button></div>}
       {/* Tab Content Container */}
       <div className="p-6">
         {/* ─── TAB 1: FACIAL RECOGNITION SETTINGS ────────────────────────── */}
@@ -373,7 +382,7 @@ const Settings = ({ onNavigate }) => {
 
             <button
               onClick={saveSettings}
-              disabled={loading}
+              disabled={loading || !settingsReady || settingsLoading}
               className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
               {loading ? 'Saving...' : 'Save Recognition Settings'}
             </button>
@@ -441,7 +450,7 @@ const Settings = ({ onNavigate }) => {
 
             <button
               onClick={saveSettings}
-              disabled={loading}
+              disabled={loading || !settingsReady || settingsLoading}
               className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm">
               {loading ? 'Saving...' : 'Save Shift Rules'}
             </button>
@@ -458,12 +467,12 @@ const Settings = ({ onNavigate }) => {
 
             {passwordSuccess && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2">
-                <span>✅</span> {passwordSuccess}
+                 {passwordSuccess}
               </div>
             )}
             {passwordError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex items-center gap-2">
-                <span>⚠️</span> {passwordError}
+                 {passwordError}
               </div>
             )}
 
@@ -479,7 +488,7 @@ const Settings = ({ onNavigate }) => {
                     id="currentPassword"
                     value={passwordForm.currentPassword}
                     onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 pr-10"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 pr-20"
                     placeholder="Enter current password"
                     required
                   />
@@ -487,7 +496,7 @@ const Settings = ({ onNavigate }) => {
                     type="button"
                     onClick={() => setShowCurrentPw(!showCurrentPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs">
-                    {showCurrentPw ? '🙈' : '👁️'}
+                    {showCurrentPw ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
@@ -503,7 +512,7 @@ const Settings = ({ onNavigate }) => {
                     id="newPassword"
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 pr-10"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 pr-20"
                     placeholder="Minimum 8 characters"
                     required
                   />
@@ -511,7 +520,7 @@ const Settings = ({ onNavigate }) => {
                     type="button"
                     onClick={() => setShowNewPw(!showNewPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs">
-                    {showNewPw ? '🙈' : '👁️'}
+                    {showNewPw ? 'Hide' : 'Show'}
                   </button>
                 </div>
 
@@ -572,9 +581,7 @@ const Settings = ({ onNavigate }) => {
             {/* Health Status Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base">
-                  🗄️
-                </div>
+
                 <div>
                   <p className="text-xs font-bold text-slate-800">MySQL Database</p>
                   <p className={`text-[10px] font-semibold ${health?.database ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -584,9 +591,7 @@ const Settings = ({ onNavigate }) => {
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base">
-                  ⚡
-                </div>
+
                 <div>
                   <p className="text-xs font-bold text-slate-800">Redis Cache</p>
                   <p className={`text-[10px] font-semibold ${health?.cache === 'redis' ? 'text-emerald-600' : 'text-amber-600'}`}>
@@ -596,9 +601,7 @@ const Settings = ({ onNavigate }) => {
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-base">
-                  🔌
-                </div>
+
                 <div>
                   <p className="text-xs font-bold text-slate-800">Socket.IO Server</p>
                   <p className={`text-[10px] font-semibold ${health?.socketServer ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -616,13 +619,13 @@ const Settings = ({ onNavigate }) => {
                 <button
                   onClick={handleExportBackup}
                   className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2">
-                  💾 Export Full Data Backup (.sql)
+                   Export Full Data Backup (.sql)
                 </button>
 
                 <button
                   onClick={handleClearCache}
                   className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2">
-                  🧹 Purge Redis Cache
+                   Purge Redis Cache
                 </button>
               </div>
             </div>

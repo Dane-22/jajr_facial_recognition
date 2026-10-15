@@ -42,3 +42,17 @@ test('shows a failed assignment save in the same row', async () => {
   fireEvent.click(within(row).getByRole('button', { name: 'Save assignments for Employee One' }));
   await waitFor(() => expect(within(row).getByRole('alert')).toHaveTextContent('Close the open time-in first.'));
 });
+
+test('saving one employee preserves another employee’s unsaved assignment changes', async () => {
+  vi.stubGlobal('fetch', vi.fn((_url, options) => Promise.resolve(options?.method === 'PUT'
+    ? { ok: true, json: async () => ({ userId: 7, siteIds: [1, 2] }) }
+    : { ok: true, json: async () => ({ ...siteData, employees: [...siteData.employees, { id: 8, name: 'Employee Two', site_ids: [1] }] }) })));
+  render(<SiteManagement />);
+  const one = (await screen.findByText('Employee One')).closest('div');
+  const two = screen.getByText('Employee Two').closest('div');
+  fireEvent.click(within(two).getByLabelText('YARD'));
+  fireEvent.click(within(one).getByLabelText('YARD'));
+  fireEvent.click(within(one).getByRole('button', { name: 'Save assignments for Employee One' }));
+  await waitFor(() => expect(within(one).getByRole('status')).toHaveTextContent('Assignments saved.'));
+  expect(within(two).getByLabelText('YARD')).toBeChecked();
+});

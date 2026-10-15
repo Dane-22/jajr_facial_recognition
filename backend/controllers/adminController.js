@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { manualLog } = require('../middleware/audit');
 const { validateSettings } = require('../utils/settingsValidation');
+const { mutateAdmin, AdminAccountError } = require('../services/adminAccounts');
 
 const adminLogin = async (req, res) => {
   try {
@@ -84,7 +85,11 @@ const createAdmin = async (req, res) => {
       return res.status(403).json({ error: 'Permission denied: Only Superadmins can add new administrators.' });
     }
 
-    const { username, password, position = 'Admin' } = req.body;
+    const { password, position = 'Admin' } = req.body;
+    const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    if (!['Admin', 'Superadmin'].includes(position) || typeof password !== 'string' || username.length > 100) {
+      return res.status(400).json({ error: 'Enter a valid username, password, and position.' });
+    }
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
@@ -130,50 +135,11 @@ const createAdmin = async (req, res) => {
 
 const updateAdmin = async (req, res) => {
   try {
-    const requesterPosition = req.user?.position || (req.user?.id === 1 || req.user?.username === 'admin' ? 'Superadmin' : 'Admin');
-    if (requesterPosition !== 'Superadmin') {
-      return res.status(403).json({ error: 'Permission denied: Only Superadmins can modify admin accounts.' });
-    }
-
-    const { id } = req.params;
-    const { username, position, password } = req.body;
-
-    const [admins] = await pool.query('SELECT * FROM admins WHERE id = ?', [id]);
-    if (admins.length === 0) {
-      return res.status(404).json({ error: 'Admin account not found' });
-    }
-
-    let query = 'UPDATE admins SET username = ?, position = ?';
-    let params = [username, position];
-
-    if (password && password.trim() !== '') {
-      if (password.length < 8) {
-        return res.status(400).json({ error: 'Password must be at least 8 characters long' });
-      }
-      const hashedPassword = await bcrypt.hash(password, 10);
-      query = 'UPDATE admins SET username = ?, position = ?, password = ? WHERE id = ?';
-      params = [username, position, hashedPassword, id];
-    } else {
-      query += ' WHERE id = ?';
-      params.push(id);
-    }
-
-    await pool.query(query, params);
-
-    await manualLog(
-      req.user.id,
-      'admin',
-      'UPDATE_ADMIN',
-      'admin',
-      id,
-      null,
-      { username, position },
-      req.ip || req.connection.remoteAddress,
-      req.get('user-agent') || null
-    );
-
+    await mutateAdmin({ db: pool, actorId: req.user?.id, targetId: req.params.id, changes: req.body || {},
+      ip: req.ip || req.connection?.remoteAddress, userAgent: req.get('user-agent') || null });
     res.status(200).json({ message: 'Admin account updated successfully' });
   } catch (error) {
+    if (error instanceof AdminAccountError) return res.status(error.status).json({ error: error.message });
     console.error('Error updating admin account:', error);
     res.status(500).json({ error: 'Failed to update admin account' });
   }
@@ -181,42 +147,11 @@ const updateAdmin = async (req, res) => {
 
 const deleteAdmin = async (req, res) => {
   try {
-    const requesterPosition = req.user?.position || (req.user?.id === 1 || req.user?.username === 'admin' ? 'Superadmin' : 'Admin');
-    if (requesterPosition !== 'Superadmin') {
-      return res.status(403).json({ error: 'Permission denied: Only Superadmins can delete admin accounts.' });
-    }
-
-    const { id } = req.params;
-    const targetId = parseInt(id);
-
-    if (targetId === req.user.id) {
-      return res.status(400).json({ error: 'Security Protection: You cannot delete your own active logged-in account.' });
-    }
-
-    // Check remaining superadmins count
-    const [superadmins] = await pool.query('SELECT id FROM admins WHERE position = "Superadmin"');
-    const [targetAdmin] = await pool.query('SELECT position FROM admins WHERE id = ?', [targetId]);
-
-    if (targetAdmin[0]?.position === 'Superadmin' && superadmins.length <= 1) {
-      return res.status(400).json({ error: 'Cannot delete the last remaining Superadmin account.' });
-    }
-
-    await pool.query('DELETE FROM admins WHERE id = ?', [targetId]);
-
-    await manualLog(
-      req.user.id,
-      'admin',
-      'DELETE_ADMIN',
-      'admin',
-      targetId,
-      null,
-      { deletedAdminId: targetId },
-      req.ip || req.connection.remoteAddress,
-      req.get('user-agent') || null
-    );
-
+    await mutateAdmin({ db: pool, actorId: req.user?.id, targetId: req.params.id,
+      ip: req.ip || req.connection?.remoteAddress, userAgent: req.get('user-agent') || null });
     res.status(200).json({ message: 'Admin account deleted successfully' });
   } catch (error) {
+    if (error instanceof AdminAccountError) return res.status(error.status).json({ error: error.message });
     console.error('Error deleting admin account:', error);
     res.status(500).json({ error: 'Failed to delete admin account' });
   }

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
+const pool = require('../config/db');
 const { verifyAdminToken } = require('../middleware/authMiddleware');
 const { verifyKioskOrAdminToken } = require('../middleware/kioskAuth');
 const faceRoutes = require('../routes/faceRoutes');
@@ -13,11 +14,11 @@ const response = () => ({
   json(body) { this.body = body; return this; }
 });
 
-test('scanner session cannot access admin endpoints', () => {
+test('scanner session cannot access admin endpoints', async () => {
   const req = { headers: { authorization: `Bearer ${token('scanner')}` } };
   const res = response();
   let nextCalled = false;
-  verifyAdminToken(req, res, () => { nextCalled = true; });
+  await verifyAdminToken(req, res, () => { nextCalled = true; });
   assert.equal(res.code, 403);
   assert.equal(nextCalled, false);
 });
@@ -31,13 +32,28 @@ test('scanner session cannot submit a claimed identity through kiosk attendance'
   assert.equal(nextCalled, false);
 });
 
-test('admin token remains valid for admin routes', () => {
+test('admin token uses current account permissions for admin routes', async () => {
+  const originalQuery = pool.query;
+  pool.query = async () => [[{ id: 7, username: 'reviewer', position: 'Admin' }]];
   const req = { headers: { authorization: `Bearer ${token('admin')}` } };
   const res = response();
   let nextCalled = false;
-  verifyAdminToken(req, res, () => { nextCalled = true; });
+  try { await verifyAdminToken(req, res, () => { nextCalled = true; }); }
+  finally { pool.query = originalQuery; }
   assert.equal(nextCalled, true);
   assert.equal(req.user.id, 7);
+  assert.equal(req.user.position, 'Admin');
+});
+
+test('deleted administrators cannot continue using an unexpired token', async () => {
+  const originalQuery = pool.query;
+  pool.query = async () => [[]];
+  const res = response();
+  let nextCalled = false;
+  try { await verifyAdminToken({ headers: { authorization: `Bearer ${token('admin')}` } }, res, () => { nextCalled = true; }); }
+  finally { pool.query = originalQuery; }
+  assert.equal(res.code, 401);
+  assert.equal(nextCalled, false);
 });
 
 test('production rejects the legacy kiosk key', () => {

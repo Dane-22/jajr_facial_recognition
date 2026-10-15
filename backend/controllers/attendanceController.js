@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { dateRangeError } = require('../utils/reportDates');
 const { manualLog } = require('../middleware/audit');
 const crypto = require('crypto');
 const { validCoordinates, attendanceSiteDecision } = require('../utils/siteRules');
@@ -250,16 +251,18 @@ const getDailyLogs = async (req, res) => {
     const { date, userId, status, sortBy = 'timestamp', sortOrder = 'DESC' } = req.query;
     
     const selectedDate = date || manilaDate(new Date());
+    const dateError = dateRangeError(selectedDate);
+    if (dateError) return res.status(400).json({ error: dateError });
     
     let query = `SELECT attendance_logs.id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role, users.id as user_id,
-       CASE WHEN manual.attendance_log_id IS NULL THEN 'scanner' ELSE 'manual' END AS source,
-       manual.reason, manual.operation_id, manual.created_at_utc AS created_at,
-       COALESCE(actor.username, manual.admin_username) AS created_by
+       CASE WHEN details.attendance_log_id IS NULL THEN 'scanner' ELSE 'manual' END AS source,
+       details.reason, details.operation_id, details.created_at_utc AS created_at,
+       COALESCE(actor.username, details.admin_username) AS created_by
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
        LEFT JOIN sites ON sites.id = attendance_logs.site_id
-       LEFT JOIN manual_attendance_details manual ON manual.attendance_log_id = attendance_logs.id
-       LEFT JOIN admins actor ON actor.id = manual.admin_id
+       LEFT JOIN manual_attendance_details details ON details.attendance_log_id = attendance_logs.id
+       LEFT JOIN admins actor ON actor.id = details.admin_id
        WHERE DATE(DATE_ADD(attendance_logs.timestamp, INTERVAL 8 HOUR)) = ?`;
     const params = [selectedDate];
     
@@ -276,12 +279,15 @@ const getDailyLogs = async (req, res) => {
     }
     
     // Sort
-    const allowedSortFields = ['timestamp', 'name', 'status', 'id'];
-    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'timestamp';
+    const allowedSortFields = {
+      timestamp: 'attendance_logs.timestamp', name: 'users.name',
+      status: 'attendance_logs.status', id: 'attendance_logs.id'
+    };
+    const sortField = Object.hasOwn(allowedSortFields, sortBy) ? allowedSortFields[sortBy] : allowedSortFields.timestamp;
     const allowedSortOrders = ['ASC', 'DESC'];
-    const sortDirection = allowedSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+    const sortDirection = allowedSortOrders.includes(String(sortOrder).toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
     
-    query += ` ORDER BY ${sortField} ${sortDirection}`;
+    query += ` ORDER BY ${sortField} ${sortDirection}, attendance_logs.id ${sortDirection}`;
     
     const [logs] = await pool.query(query, params);
 
@@ -300,16 +306,15 @@ const getAllLogs = async (req, res) => {
   try {
     const [logs] = await pool.query(
       `SELECT attendance_logs.id, attendance_logs.user_id, attendance_logs.status, attendance_logs.timestamp, attendance_logs.latitude, attendance_logs.longitude, attendance_logs.site_id, sites.name AS site_name, users.name, users.role,
-       CASE WHEN manual.attendance_log_id IS NULL THEN 'scanner' ELSE 'manual' END AS source,
-       manual.reason, manual.operation_id, manual.created_at_utc AS created_at,
-       COALESCE(actor.username, manual.admin_username) AS created_by
+       CASE WHEN details.attendance_log_id IS NULL THEN 'scanner' ELSE 'manual' END AS source,
+       details.reason, details.operation_id, details.created_at_utc AS created_at,
+       COALESCE(actor.username, details.admin_username) AS created_by
        FROM attendance_logs
        INNER JOIN users ON attendance_logs.user_id = users.id
        LEFT JOIN sites ON sites.id = attendance_logs.site_id
-       LEFT JOIN manual_attendance_details manual ON manual.attendance_log_id = attendance_logs.id
-       LEFT JOIN admins actor ON actor.id = manual.admin_id
-       ORDER BY attendance_logs.timestamp DESC
-       LIMIT 1000`
+       LEFT JOIN manual_attendance_details details ON details.attendance_log_id = attendance_logs.id
+       LEFT JOIN admins actor ON actor.id = details.admin_id
+       ORDER BY attendance_logs.timestamp DESC, attendance_logs.id DESC`
     );
 
     res.status(200).json({

@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { dateRangeError, manilaBounds } = require('../utils/reportDates');
 const { manualLog } = require('../middleware/audit');
 const { encrypt } = require('../utils/crypto');
 const { changeEmployeeStatus, EmployeeStatusError } = require('../services/employeeArchive');
@@ -8,6 +9,8 @@ const getAllEmployees = async (req, res) => {
   try {
     await pool.ready;
     const { search, role, startDate, endDate, status, sortBy = 'created_at', sortOrder = 'DESC' } = req.query;
+    const dateError = dateRangeError(startDate, endDate);
+    if (dateError) return res.status(400).json({ error: dateError });
     if (status && !['active', 'archived', 'all'].includes(status)) {
       return res.status(400).json({ error: 'Invalid employee status filter.' });
     }
@@ -32,16 +35,8 @@ const getAllEmployees = async (req, res) => {
     }
     
     // Filter by date range (created_at)
-    if (startDate) {
-      query += ' AND created_at >= ?';
-      params.push(startDate);
-    }
-    
-    if (endDate) {
-      query += ' AND created_at <= ?';
-      params.push(endDate);
-    }
-    
+    query += manilaBounds('created_at', startDate, endDate, params);
+
     // Sort
     const allowedSortFields = ['id', 'name', 'role', 'created_at'];
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
@@ -49,7 +44,7 @@ const getAllEmployees = async (req, res) => {
     const requestedSortOrder = String(sortOrder).toUpperCase();
     const sortDirection = allowedSortOrders.includes(requestedSortOrder) ? requestedSortOrder : 'DESC';
     
-    query += ` ORDER BY ${sortField} ${sortDirection} LIMIT 1000`;
+    query += ` ORDER BY ${sortField} ${sortDirection}, id ${sortDirection}`;
     
     const [employees] = await pool.query(query, params);
     
@@ -71,16 +66,8 @@ const getAllEmployees = async (req, res) => {
       countParams.push(`${role}%`);
     }
     
-    if (startDate) {
-      countQuery += ' AND created_at >= ?';
-      countParams.push(startDate);
-    }
-    
-    if (endDate) {
-      countQuery += ' AND created_at <= ?';
-      countParams.push(endDate);
-    }
-    
+    countQuery += manilaBounds('created_at', startDate, endDate, countParams);
+
     const [countResult] = await pool.query(countQuery, countParams);
     
     res.status(200).json({ 

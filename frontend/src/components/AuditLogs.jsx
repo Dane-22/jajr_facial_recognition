@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Table from './UI/Table';
 import RecordCard from './UI/RecordCard';
 import { serializeCsv } from '../utils/csv';
+import { attendanceDate } from '../utils/attendanceTime';
 
 const API_URL = '/api';
 
@@ -35,13 +36,18 @@ const AuditLogs = () => {
   useEffect(() => {
     const requestId = ++fetchRequestIdRef.current;
     const token = localStorage.getItem('admin_token');
-    if (!token) return;
+    if (!token || (startDate && endDate && startDate > endDate)) {
+      setError(!token ? 'Your session has expired. Please sign in again.' : 'End date must be on or after start date.');
+      setLogs([]); setTotal(0); setTotalPages(1); setStats(null); setLoading(false);
+      return;
+    }
+    setLogs([]); setTotal(0); setStats(null); setError('');
     setLoading(true);
     const timer = setTimeout(() => {
       fetchAuditLogs(token, requestId);
-      fetchAuditStats(token);
+      fetchAuditStats(token, requestId);
     }, 250);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); fetchRequestIdRef.current++; };
   }, [actionFilter, entityTypeFilter, userTypeFilter, startDate, endDate, sortBy, sortOrder, page, itemsPerPage]);
 
   const fetchAuditLogs = async (token, requestId) => {
@@ -66,6 +72,7 @@ const AuditLogs = () => {
         }
       });
 
+      if (requestId !== fetchRequestIdRef.current) return;
       if (response.status === 429) {
         setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
         setLogs([]);
@@ -83,10 +90,12 @@ const AuditLogs = () => {
         setTotal(totalCount);
         setTotalPages(pagesCount);
       } else {
+        setLogs([]); setTotal(0); setTotalPages(1);
         setError(data.error || 'Failed to fetch audit logs');
       }
     } catch (err) {
       if (requestId === fetchRequestIdRef.current) {
+        setLogs([]); setTotal(0); setTotalPages(1);
         setError('Network error. Please check your connection.');
       }
     } finally {
@@ -94,9 +103,13 @@ const AuditLogs = () => {
     }
   };
 
-  const fetchAuditStats = async (token) => {
+  const fetchAuditStats = async (token, requestId) => {
     try {
-      const response = await fetch(`${API_URL}/audit/stats/summary`, {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries({ action: actionFilter, entityType: entityTypeFilter, userType: userTypeFilter, startDate, endDate })) {
+        if (value) params.set(key, value);
+      }
+      const response = await fetch(`${API_URL}/audit/stats/summary?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -104,6 +117,7 @@ const AuditLogs = () => {
 
       const data = await response.json();
 
+      if (requestId !== fetchRequestIdRef.current) return;
       if (response.ok) {
         setStats(data);
       }
@@ -129,11 +143,12 @@ const AuditLogs = () => {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      timeZone: 'Asia/Manila',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
       hour12: true
-    });
+    }) + ' PHT';
   };
 
   const getActionBadgeColor = (action) => {
@@ -153,7 +168,7 @@ const AuditLogs = () => {
   };
 
   const exportToCSV = () => {
-    if (logs.length === 0 || isExporting) return;
+    if (loading || error || logs.length === 0 || isExporting) return;
 
     setIsExporting(true);
     setTimeout(() => setIsExporting(false), 2000);
@@ -174,7 +189,7 @@ const AuditLogs = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `audit-logs-${attendanceDate(new Date())}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -212,17 +227,12 @@ const AuditLogs = () => {
     }
   ];
 
-  const emptyIcon = (
-    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  );
 
   const displayTotal = total || logs.length;
   const displayTotalPages = totalPages || Math.max(1, Math.ceil(displayTotal / itemsPerPage));
 
   return (
-    <div className="w-full bg-white rounded-xl border border-slate-100 shadow-sm">
+    <div className="page-panel w-full">
       {/* Header */}
       <div className="w-full border-b border-slate-100 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -232,11 +242,9 @@ const AuditLogs = () => {
         <button
           type="button"
           onClick={exportToCSV}
-          disabled={logs.length === 0 || isExporting}
+          disabled={loading || !!error || logs.length === 0 || isExporting}
           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
+
           {isExporting ? 'Exporting...' : 'Export current page'}
         </button>
       </div>
@@ -270,7 +278,7 @@ const AuditLogs = () => {
             <div className="text-left">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Most Common Action</p>
               <p className="break-all text-xl font-bold text-slate-900 sm:text-2xl">
-                {stats.byAction?.[0]?.action || '-'}
+                {stats.byAction?.slice().sort((a, b) => Number(b.count) - Number(a.count))[0]?.action || '-'}
               </p>
             </div>
           </div>
@@ -281,6 +289,7 @@ const AuditLogs = () => {
       <div className="border-b border-slate-100 px-4 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <select
+            aria-label="Action"
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
@@ -296,6 +305,7 @@ const AuditLogs = () => {
             <option value="MANUAL_SITE_TRANSFER">Manual site transfer</option>
           </select>
           <select
+            aria-label="Entity type"
             value={entityTypeFilter}
             onChange={(e) => setEntityTypeFilter(e.target.value)}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
@@ -306,6 +316,7 @@ const AuditLogs = () => {
             <option value="admin">Admin</option>
           </select>
           <select
+            aria-label="User type"
             value={userTypeFilter}
             onChange={(e) => setUserTypeFilter(e.target.value)}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
@@ -315,17 +326,20 @@ const AuditLogs = () => {
           </select>
           <input
             type="date"
+            aria-label="Start date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             className="min-w-0 max-w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"
           />
           <input
             type="date"
+            aria-label="End date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200"
           />
           <select
+            aria-label="Sort by"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
@@ -334,6 +348,7 @@ const AuditLogs = () => {
             <option value="entity_type">Entity Type</option>
           </select>
           <select
+            aria-label="Sort order"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
             className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 transition-all duration-200">
@@ -362,11 +377,7 @@ const AuditLogs = () => {
             </div>
           ) : error ? (
             <div className="flex py-12 flex-col items-center justify-center">
-              <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+
               <p className="text-slate-500 text-sm font-medium">{error}</p>
             </div>
           ) : (
@@ -392,7 +403,7 @@ const AuditLogs = () => {
                   />
                 )}
                 emptyMessage="No audit logs found"
-                emptyIcon={emptyIcon} />
+ />
             </div>
           )}
         </div>

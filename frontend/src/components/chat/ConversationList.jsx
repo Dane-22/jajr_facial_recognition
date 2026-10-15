@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 const ConversationList = ({ rooms, activeRoom, onSelectRoom, onOpenCreateGroup, loading }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredRooms = rooms.filter(room => 
+  const filteredRooms = rooms.filter(room =>
     room.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -13,9 +13,9 @@ const ConversationList = ({ rooms, activeRoom, onSelectRoom, onOpenCreateGroup, 
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>💬</span> Conversations
+             Conversations
           </h3>
-          <button 
+          <button
             onClick={onOpenCreateGroup}
             style={{
               background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
@@ -32,12 +32,12 @@ const ConversationList = ({ rooms, activeRoom, onSelectRoom, onOpenCreateGroup, 
               boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
             }}
           >
-            <span>➕</span> New Group
+             New Group
           </button>
         </div>
 
         <div style={{ position: 'relative' }}>
-          <input 
+          <input
             type="text"
             placeholder="Search groups & chats..."
             value={searchQuery}
@@ -55,7 +55,7 @@ const ConversationList = ({ rooms, activeRoom, onSelectRoom, onOpenCreateGroup, 
             }}
           />
           <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#64748b' }}>
-            🔍
+
           </span>
         </div>
       </div>
@@ -76,7 +76,7 @@ const ConversationList = ({ rooms, activeRoom, onSelectRoom, onOpenCreateGroup, 
             const hasUnread = room.unread_count > 0;
 
             return (
-              <div 
+              <div
                 key={room.id}
                 onClick={() => onSelectRoom(room)}
                 style={{
@@ -110,7 +110,7 @@ const ConversationList = ({ rooms, activeRoom, onSelectRoom, onOpenCreateGroup, 
                   marginRight: '12px',
                   flexShrink: 0
                 }}>
-                  {room.avatar_url || (room.type === 'announcement' ? '📢' : '👥')}
+                  {room.name?.slice(0, 2).toUpperCase()}
                 </div>
 
                 {/* Room Details */}

@@ -370,9 +370,6 @@ export default function CameraFeed({ onFaceDetected }) {
     </div>
     {status === 'active' && confirmation && <div role="alert" className="fixed inset-0 z-[100] flex overflow-y-auto bg-slate-950/95 px-4 py-4 text-center text-white sm:px-8 sm:py-8">
       <div className="m-auto w-full max-w-2xl rounded-3xl border-4 border-emerald-300 bg-emerald-700 px-5 py-6 shadow-2xl sm:px-10 sm:py-14">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-white text-emerald-700 sm:mb-6 sm:h-28 sm:w-28" aria-hidden="true">
-          <svg className="h-14 w-14 sm:h-20 sm:w-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
-        </div>
         <p className="text-3xl font-black uppercase tracking-wide sm:text-5xl">Attendance recorded</p>
         <p className="mt-4 break-words text-4xl font-bold sm:mt-6 sm:text-6xl">{confirmation.name}</p>
         <p className="mt-4 text-3xl font-bold sm:mt-5 sm:text-4xl">{confirmation.status === 'IN' ? 'Checked in' : 'Checked out'}</p>

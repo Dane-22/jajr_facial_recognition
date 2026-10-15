@@ -11,7 +11,7 @@ const getDashboardStats = async (req, res) => {
 
     // 1. Attendance trends (line chart - last N days)
     const [trendData] = await pool.query(`
-      SELECT 
+      SELECT
         DATE_FORMAT(${manilaTime('timestamp')}, '%Y-%m-%d') as date,
         COUNT(CASE WHEN status = 'IN' THEN 1 END) as check_ins,
         COUNT(CASE WHEN status = 'OUT' THEN 1 END) as check_outs,
@@ -35,7 +35,7 @@ const getDashboardStats = async (req, res) => {
 
     // 2. Employee comparison (bar chart)
     const [employeeData] = await pool.query(`
-      SELECT 
+      SELECT
         u.name as employee_name,
         COUNT(al.id) as total_attendance,
         CASE WHEN current_status.status = 'IN' THEN 1 ELSE 0 END as checked_in_today
@@ -61,7 +61,7 @@ const getDashboardStats = async (req, res) => {
 
     // 3. Attendance breakdown (pie chart - today's status)
     const [breakdownData] = await pool.query(`
-      SELECT 
+      SELECT
         COALESCE(SUM(status = 'IN'), 0) as checked_in,
         COALESCE(SUM(status = 'OUT'), 0) as checked_out
       FROM (
@@ -84,12 +84,13 @@ const getDashboardStats = async (req, res) => {
 
     // 4. Heat map data (time-based patterns - hourly check-ins for last 7 days)
     const [heatMapData] = await pool.query(`
-      SELECT 
+      SELECT
         DAYOFWEEK(${manilaTime('timestamp')}) as day_num,
         HOUR(${manilaTime('timestamp')}) as hour,
         COUNT(CASE WHEN status = 'IN' THEN 1 END) as check_ins
       FROM attendance_logs
-      WHERE ${manilaTime('timestamp')} >= DATE_SUB(${manilaToday}, INTERVAL 7 DAY)
+      WHERE ${manilaTime('timestamp')} >= DATE_SUB(${manilaToday}, INTERVAL 6 DAY)
+        AND ${manilaTime('timestamp')} < DATE_ADD(${manilaToday}, INTERVAL 1 DAY)
       GROUP BY DAYOFWEEK(${manilaTime('timestamp')}), HOUR(${manilaTime('timestamp')})
       ORDER BY day_num, hour
     `);
@@ -103,7 +104,7 @@ const getDashboardStats = async (req, res) => {
 
     // 5. Summary stats
     const [todayStats] = await pool.query(`
-      SELECT 
+      SELECT
         COUNT(CASE WHEN status = 'IN' THEN 1 END) as today_check_ins,
         COUNT(CASE WHEN status = 'OUT' THEN 1 END) as today_check_outs,
         COUNT(CASE WHEN DATE(${manilaTime('timestamp')}) = ${manilaToday} THEN 1 END) as today_total
@@ -139,19 +140,22 @@ const getCalendarActivity = async (req, res) => {
     const { year, month } = req.query; // month is 1-12
     if (!year || !month) return res.status(400).json({ error: 'Year and month are required' });
 
-    const y = parseInt(year);
-    const m = parseInt(month);
-    
+    const y = Number(year);
+    const m = Number(month);
+    if (!Number.isInteger(y) || y < 2000 || y > 2100 || !Number.isInteger(m) || m < 1 || m > 12) {
+      return res.status(400).json({ error: 'Invalid calendar year or month.' });
+    }
+
     const [rows] = await pool.query(`
-      SELECT DISTINCT DATE_FORMAT(timestamp, '%Y-%m-%d') as active_date
+      SELECT DISTINCT DATE_FORMAT(${manilaTime('timestamp')}, '%Y-%m-%d') as active_date
       FROM attendance_logs
-      WHERE status = 'IN' 
-        AND YEAR(timestamp) = ? 
-        AND MONTH(timestamp) = ?
+      WHERE status = 'IN'
+        AND YEAR(${manilaTime('timestamp')}) = ?
+        AND MONTH(${manilaTime('timestamp')}) = ?
     `, [y, m]);
 
     const activeDates = rows.map(r => r.active_date);
-    
+
     res.status(200).json({ activeDates });
   } catch (error) {
     console.error('Error fetching calendar stats:', error);

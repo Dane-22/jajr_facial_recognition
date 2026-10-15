@@ -12,6 +12,8 @@ const SOCKET_URL = '';
  */
 const useSocket = (event, onEvent, enabled = true) => {
   const socketRef = useRef(null);
+  const callbackRef = useRef(onEvent);
+  callbackRef.current = onEvent;
 
   useEffect(() => {
     if (!enabled) return;
@@ -37,8 +39,8 @@ const useSocket = (event, onEvent, enabled = true) => {
       console.warn('[Socket.IO] Connection error:', err.message);
     });
 
-    if (event && onEvent) {
-      socket.on(event, onEvent);
+    if (event) {
+      socket.on(event, (...args) => callbackRef.current?.(...args));
     }
 
     // Strict Mode immediately cleans up its first effect in development.
@@ -50,7 +52,7 @@ const useSocket = (event, onEvent, enabled = true) => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [event, enabled]); // onEvent intentionally omitted — callers should useCallback
+  }, [event, enabled]);
 
   return socketRef;
 };

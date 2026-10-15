@@ -24,13 +24,13 @@ const getLoggedInUser = () => {
       console.warn('Failed to parse user token:', e);
     }
   }
-  return { id: 1, username: 'Admin', type: 'admin', position: 'Superadmin' };
+  return { id: null, username: 'Admin', type: 'admin', position: 'Admin' };
 };
 
 const AIChatWidget = ({ activeTab, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeWidgetTab, setActiveWidgetTab] = useState('group'); // 'group' or 'ai'
-  
+
   // AI Assistant States
   const [inputQuery, setInputQuery] = useState('');
   const [isVoiceActive, setIsVoiceActive] = useState(false);
@@ -42,8 +42,8 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     {
       id: 1,
       sender: 'bot',
-      text: "Hello! 👋 I'm JAJR Assistant for this system. Ask me about today's attendance, late logs, or dictate commands using the mic!",
-      suggestedChips: ["📊 Today's Summary", "🚨 Late Arrivals", "👤 Register Face"],
+      text: "Hello!  I'm JAJR Assistant for this system. Ask me about today's attendance, late logs, or dictate commands using the mic!",
+      suggestedChips: [" Today's Summary", " Late Arrivals", " Register Face"],
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -55,6 +55,13 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
   const [typingUser, setTypingUser] = useState(null);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const widgetState = useRef({ activeRoom, isOpen });
+  widgetState.current = { activeRoom, isOpen };
+  const roomRequest = useRef(0);
+  const roomsRequest = useRef(0);
+  const joinedRooms = useRef(new Set());
 
   const socketRef = useRef(null);
   const aiMessagesEndRef = useRef(null);
@@ -95,32 +102,35 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
 
     // Real-time message listener
     socket.on('chat:new_message', (newMessage) => {
-      setChatMessages(prev => {
+      const { activeRoom, isOpen } = widgetState.current;
+      const ownMessage = newMessage.sender_type === 'admin' && String(newMessage.sender_id) === String(getLoggedInUser().id);
+      if (isOpen && String(newMessage.room_id) === String(activeRoom?.id)) socket.emit('chat:mark_read', { roomId: newMessage.room_id });
+      if (String(newMessage.room_id) === String(activeRoom?.id)) setChatMessages(prev => {
         if (prev.some(m => m.id === newMessage.id)) return prev;
         return [...prev, newMessage];
       });
 
       // Increment unread count if widget is minimized or viewing another room
       setRooms(prevRooms => prevRooms.map(r => {
-        if (r.id === newMessage.room_id) {
+        if (String(r.id) === String(newMessage.room_id)) {
           return {
             ...r,
             last_message: newMessage.content,
             last_message_time: newMessage.created_at,
-            unread_count: (r.id === activeRoom?.id && isOpen) ? 0 : (r.unread_count || 0) + 1
+            unread_count: (String(r.id) === String(activeRoom?.id) && isOpen) ? 0 : Number(r.unread_count || 0) + (ownMessage ? 0 : 1)
           };
         }
         return r;
       }));
 
-      if (!isOpen || activeRoom?.id !== newMessage.room_id) {
+      if (!ownMessage && (!isOpen || String(activeRoom?.id) !== String(newMessage.room_id))) {
         setUnreadCount(prev => prev + 1);
       }
     });
 
     // Typing status listener
     socket.on('chat:user_typing', ({ roomId, userName, isTyping }) => {
-      if (activeRoom?.id === roomId) {
+      if (String(widgetState.current.activeRoom?.id) === String(roomId)) {
         setTypingUser(isTyping ? userName : null);
       }
     });
@@ -152,12 +162,15 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
     return () => {
       window.clearTimeout(connectTimer);
       socket.disconnect();
+      roomRequest.current++; roomsRequest.current++;
     };
-     
+
   }, []);
 
   // Fetch Rooms from API
   const fetchRooms = async () => {
+    const revision = ++roomsRequest.current;
+    setChatError('');
     setLoadingRooms(true);
     try {
       const token = getAuthToken();
@@ -168,21 +181,30 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
         throw new Error(`Server responded with ${res.status}`);
       }
       const data = await res.json();
+      if (revision !== roomsRequest.current) return;
       if (data.success) {
-        setRooms(data.rooms);
-        const totalUnread = data.rooms.reduce((acc, r) => acc + (r.unread_count || 0), 0);
+        const allowedIds = new Set(data.rooms.map(room => room.id));
+        for (const id of joinedRooms.current) if (!allowedIds.has(id)) socketRef.current?.emit('chat:leave_room', { roomId: id });
+        for (const id of allowedIds) socketRef.current?.emit('chat:join_room', { roomId: id });
+        joinedRooms.current = allowedIds;
+        const visibleRooms = data.rooms.map(room => widgetState.current.isOpen && String(widgetState.current.activeRoom?.id) === String(room.id) ? { ...room, unread_count: 0 } : room);
+        setRooms(visibleRooms);
+        const totalUnread = visibleRooms.reduce((acc, r) => acc + Number(r.unread_count || 0), 0);
         setUnreadCount(totalUnread);
       }
     } catch (err) {
-      console.error('Failed to fetch chat rooms:', err);
+      if (revision === roomsRequest.current) setChatError('Unable to load conversations. Please try again.');
     } finally {
-      setLoadingRooms(false);
+      if (revision === roomsRequest.current) setLoadingRooms(false);
     }
   };
 
   // Select a Chat Room
   const handleSelectRoom = async (room) => {
+    const revision = ++roomRequest.current;
+    widgetState.current = { ...widgetState.current, activeRoom: room };
     setActiveRoom(room);
+    setChatMessages([]); setChatError(''); setLoadingMessages(true);
     setTypingUser(null);
 
     // Join room channel on socket
@@ -190,6 +212,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       socketRef.current.emit('chat:join_room', { roomId: room.id });
     }
 
+    setUnreadCount(count => Math.max(0, Number(count) - Number(room.unread_count || 0)));
     // Mark room unread count as 0 locally
     setRooms(prev => prev.map(r => r.id === room.id ? { ...r, unread_count: 0 } : r));
 
@@ -200,18 +223,22 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
       const data = await res.json();
-      if (data.success) {
-        setChatMessages(data.messages);
-      }
+      if (revision !== roomRequest.current) return;
+      if (res.ok && data.success) {
+        setChatMessages(previous => [...new Map([...(data.messages || []), ...previous]
+          .filter(message => String(message.room_id) === String(room.id)).map(message => [message.id, message])).values()]
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.id - b.id));
+      } else setChatError(data.error || 'Unable to load messages.');
     } catch (err) {
-      console.error('Failed to fetch room messages:', err);
-    }
+      if (revision === roomRequest.current) setChatError('Unable to load messages. Please try again.');
+    } finally { if (revision === roomRequest.current) setLoadingMessages(false); }
   };
 
   // Send Message in Active Room
   const handleSendChatMessage = async ({ content, messageType, attachmentUrl, replyToId }) => {
-    if (!activeRoom) return;
-
+    if (!activeRoom) return false;
+    const sendingRoomId = activeRoom.id;
+    setChatError('');
     try {
       const token = getAuthToken();
       const res = await fetch(`/api/chat/rooms/${activeRoom.id}/messages`, {
@@ -229,14 +256,17 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       });
 
       const data = await res.json();
-      if (data.success && data.message) {
+      if (!res.ok || !data.success || !data.message) throw new Error(data.error || 'Message could not be sent.');
+      if (String(widgetState.current.activeRoom?.id) === String(sendingRoomId)) {
         setChatMessages(prev => {
           if (prev.some(m => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
       }
+      return true;
     } catch (err) {
-      console.error('REST send message error:', err);
+      setChatError(err.message || 'Message could not be sent. Please retry.');
+      return false;
     }
   };
 
@@ -302,7 +332,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       console.error('[AIChatWidget] Processing error:', err);
       setIsThinking(false);
     }
-     
+
   }, [activeTab, inputQuery, onNavigate]);
 
   // Speech Recognition Setup (Web Speech API for AI Assistant)
@@ -346,6 +376,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       };
 
       recognitionRef.current = recognition;
+      return () => { recognition.onresult = null; recognition.onend = null; recognition.abort(); };
     }
   }, [activeTab, handleSendAiMessage]);
 
@@ -373,63 +404,45 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
 
   const handleOpenWidget = () => {
     setIsOpen(true);
-    setUnreadCount(0);
+    if (activeRoom) {
+      socketRef.current?.emit('chat:mark_read', { roomId: activeRoom.id });
+    }
     fetchRooms();
   };
 
   return (
     <>
       {/* ─── Floating Trigger Button ────────────────────────────────────────────── */}
-      {!isOpen && (
-        <button
-          onClick={handleOpenWidget}
-          data-testid="ai-chat-trigger"
-          aria-label="Open Chat & AI Assistant"
-          className="chat-trigger fixed top-1 right-14 bottom-auto sm:top-auto sm:bottom-6 sm:right-6 z-50 flex items-center gap-3 p-3 sm:px-4 sm:py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 border border-slate-700">
-          <div className="relative flex items-center justify-center">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-base">
-              💬
-            </div>
-          </div>
-          <div className="text-left hidden sm:block">
-            <p className="text-xs font-semibold leading-tight text-white">Group Chat & AI</p>
-            <p className="text-[10px] text-blue-400 font-medium">Messenger Active</p>
-          </div>
-          {unreadCount > 0 && (
-            <span className="w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-slate-900 animate-bounce">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      )}
+      {!isOpen && <button type="button" onClick={handleOpenWidget} data-testid="ai-chat-trigger" aria-label="Open Chat & AI Assistant" className="chat-trigger fixed bottom-5 right-5 z-50 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-lg hover:bg-slate-800">
+        Chat & assistant {unreadCount > 0 && <span className="ml-2 rounded bg-white/15 px-1.5 py-0.5">{unreadCount}</span>}
+      </button>}
 
       {/* ─── Expanded Messenger Chat Window ────────────────────────────────────── */}
       {isOpen && (
         <div className="fixed bottom-2 right-2 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1rem)] sm:w-[420px] h-[min(580px,calc(100dvh-1rem))] bg-slate-900/95 backdrop-blur-xl text-slate-100 rounded-2xl shadow-2xl border border-slate-700/60 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
-          
+
           {/* Top Header & Tab Toggle */}
           <div className="px-4 py-2.5 bg-slate-800/90 border-b border-slate-700/80 flex items-center justify-between">
             <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700">
               <button
                 onClick={() => setActiveWidgetTab('group')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                  activeWidgetTab === 'group' 
-                    ? 'bg-blue-600 text-white shadow-md' 
+                  activeWidgetTab === 'group'
+                    ? 'bg-blue-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <span>💬</span> Group Chat
+                 Group Chat
               </button>
               <button
                 onClick={() => setActiveWidgetTab('ai')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                  activeWidgetTab === 'ai' 
-                    ? 'bg-emerald-600 text-white shadow-md' 
+                  activeWidgetTab === 'ai'
+                    ? 'bg-emerald-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <span>🤖</span> AI Assistant
+                 AI Assistant
               </button>
             </div>
 
@@ -439,15 +452,13 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
                   onClick={() => setIsMuted(!isMuted)}
                   className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
                   title={isMuted ? 'Unmute voice output' : 'Mute voice output'}>
-                  {isMuted ? '🔇' : '🔊'}
+                  {isMuted ? 'Unmute' : 'Mute'}
                 </button>
               )}
-              <button
+              <button aria-label="Close chat"
                 onClick={() => setIsOpen(false)}
                 className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Close
               </button>
             </div>
           </div>
@@ -455,19 +466,21 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
           {/* TAB 1: GROUP CHAT & MESSENGER */}
           {activeWidgetTab === 'group' && (
             <div className="flex-1 flex flex-col overflow-hidden">
+              {chatError && <p role="alert" className="p-3 text-sm text-red-300">{chatError}</p>}
               {activeRoom ? (
-                <GroupChatView 
+                <GroupChatView key={activeRoom.id}
                   room={activeRoom}
                   messages={chatMessages}
+                  loading={loadingMessages}
                   currentUser={currentUser}
                   typingUser={typingUser}
                   onSendMessage={handleSendChatMessage}
                   onAddReaction={handleAddReaction}
-                  onBack={() => setActiveRoom(null)}
+                  onBack={() => { roomRequest.current++; widgetState.current.activeRoom = null; setActiveRoom(null); }}
                   socket={socketRef.current}
                 />
               ) : (
-                <ConversationList 
+                <ConversationList
                   rooms={rooms}
                   activeRoom={activeRoom}
                   onSelectRoom={handleSelectRoom}
@@ -515,7 +528,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
                             </div>
                             <div className="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
                               <p className="text-slate-400">Late</p>
-                              <p className="font-bold text-amber-400 text-xs">{msg.card.data.lateCount}</p>
+                              <p className="font-bold text-amber-400 text-xs">{msg.card.data.lateCount ?? 'Not enabled'}</p>
                             </div>
                             <div className="bg-slate-800 p-1.5 rounded-lg border border-slate-700">
                               <p className="text-slate-400">Absent</p>
@@ -574,7 +587,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
                 <div className="px-3 py-1.5 bg-rose-500/20 border-y border-rose-500/30 text-rose-300 text-[11px] flex items-center justify-between animate-pulse">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                    🎙️ Listening to voice input... Speak now!
+                     Listening to voice input... Speak now!
                   </span>
                   <button
                     onClick={toggleVoiceInput}
@@ -600,9 +613,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
                         ? 'bg-rose-500 text-white border-rose-400 animate-bounce'
                         : 'bg-slate-700/80 text-slate-300 hover:bg-slate-700 hover:text-emerald-400 border-slate-600'
                     }`}
-                    title="Dictate query with microphone">
-                    🎙️
-                  </button>
+                    title="Dictate query with microphone">{isVoiceActive ? 'Stop' : 'Voice'}</button>
 
                   <input
                     type="text"
@@ -615,9 +626,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
                   <button
                     type="submit"
                     disabled={!inputQuery.trim()}
-                    className="p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl font-bold transition-all text-xs flex items-center justify-center">
-                    ✈️
-                  </button>
+                    className="p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl font-bold transition-all text-xs flex items-center justify-center">Send</button>
                 </form>
               </div>
             </div>
@@ -626,7 +635,7 @@ const AIChatWidget = ({ activeTab, onNavigate }) => {
       )}
 
       {/* Create Group Modal */}
-      <CreateGroupModal 
+      <CreateGroupModal
         isOpen={isCreateGroupOpen}
         onClose={() => setIsCreateGroupOpen(false)}
         onGroupCreated={(newRoom) => {

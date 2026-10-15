@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 
 const manilaInputNow = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19);
 const toManilaIso = value => value ? `${value}${value.length === 16 ? ':00' : ''}+08:00` : '';
@@ -29,6 +29,7 @@ export default function ManualAttendance({ initialEmployeeId = null }) {
   const [query, setQuery] = useState(initialEmployeeId ? String(initialEmployeeId) : '');
   const [expandedId, setExpandedId] = useState(null);
   const [history, setHistory] = useState([]);
+  const historyRequest = useRef(0);
   const [mode, setMode] = useState('IN');
   const [siteId, setSiteId] = useState('');
   const [at, setAt] = useState(manilaInputNow);
@@ -70,14 +71,17 @@ export default function ManualAttendance({ initialEmployeeId = null }) {
   const selected = employees.find(employee => employee.id === expandedId);
 
   const openEmployee = async employee => {
+    const revision = ++historyRequest.current;
     if (expandedId === employee.id) { setExpandedId(null); return; }
     setExpandedId(employee.id);
     setMode(employee.session ? 'OUT' : 'IN');
     setSiteId('');
     setAt(manilaInputNow()); setOutAt(manilaInputNow()); setReason('');
     setReviewing(false); setMessage(''); setError(''); setHistory([]);
-    try { setHistory((await request(`/${employee.id}`)).logs || []); }
-    catch (failure) { setError(failure.message); }
+    try {
+      const result = await request(`/${employee.id}`);
+      if (revision === historyRequest.current) setHistory(result.logs || []);
+    } catch (failure) { if (revision === historyRequest.current) setError(failure.message); }
   };
 
   const effectiveSite = mode === 'OUT' ? selected?.session?.site_name
@@ -132,7 +136,7 @@ export default function ManualAttendance({ initialEmployeeId = null }) {
           </span>
         </div>
         {employee.session && <p className="mt-2 text-sm text-slate-700">{employee.session.site_name} · Since {formatManila(employee.session.started_at)}</p>}
-        <button type="button" onClick={() => openEmployee(employee)} aria-expanded={expandedId === employee.id}
+        <button type="button" disabled={busy} onClick={() => openEmployee(employee)} aria-expanded={expandedId === employee.id}
           className="mt-3 min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
           {expandedId === employee.id ? 'Close attendance details' : 'Manage attendance'}
         </button>

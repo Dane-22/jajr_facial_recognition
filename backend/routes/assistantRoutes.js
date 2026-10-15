@@ -8,7 +8,7 @@ router.get('/summary', verifyAdminToken, async (req, res) => {
   try {
     // 1. Total registered users count
     const [totalRes] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_active = 1');
-    const totalEmployees = totalRes[0]?.total || 0;
+    const totalEmployees = Number(totalRes[0]?.total || 0);
 
     // 2. Today's check-ins and check-outs
     const [todayRes] = await pool.query(`
@@ -16,29 +16,15 @@ router.get('/summary', verifyAdminToken, async (req, res) => {
         COUNT(DISTINCT CASE WHEN status = 'IN' THEN user_id END) as checked_in,
         COUNT(DISTINCT CASE WHEN status = 'OUT' THEN user_id END) as checked_out
       FROM attendance_logs
-      WHERE DATE(timestamp) = CURDATE()
+      JOIN users active_users ON active_users.id = attendance_logs.user_id AND active_users.is_active = 1
+      WHERE DATE(DATE_ADD(timestamp, INTERVAL 8 HOUR)) = DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))
     `);
 
-    const checkedIn = todayRes[0]?.checked_in || 0;
-    const checkedOut = todayRes[0]?.checked_out || 0;
+    const checkedIn = Number(todayRes[0]?.checked_in || 0);
+    const checkedOut = Number(todayRes[0]?.checked_out || 0);
     const absent = Math.max(0, totalEmployees - checkedIn);
 
-    // 3. Late arrivals (check-in timestamp after 09:00 AM today)
-    const [lateRes] = await pool.query(`
-      SELECT 
-        u.id, 
-        u.name as full_name, 
-        u.role as employee_id, 
-        al.timestamp
-      FROM attendance_logs al
-      JOIN users u ON al.user_id = u.id
-      WHERE DATE(al.timestamp) = CURDATE()
-        AND u.is_active = 1
-        AND al.status = 'IN'
-        AND TIME(al.timestamp) > '09:00:00'
-      ORDER BY al.timestamp ASC
-      LIMIT 10
-    `);
+    // Late flags are not enabled; never infer a policy from a hard-coded UTC hour.
 
     // 4. Recent system audit logs
     const [auditRes] = await pool.query(`
@@ -56,8 +42,9 @@ router.get('/summary', verifyAdminToken, async (req, res) => {
         checkedOut,
         absent,
         attendanceRate: totalEmployees > 0 ? Math.round((checkedIn / totalEmployees) * 100) : 0,
-        lateCount: lateRes.length,
-        lateEmployees: lateRes,
+        lateCount: null,
+        lateAvailable: false,
+        lateEmployees: [],
         recentAudits: auditRes
       }
     });

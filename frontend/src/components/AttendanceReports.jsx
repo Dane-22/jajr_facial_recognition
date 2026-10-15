@@ -3,14 +3,15 @@ import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import TableScroll from './UI/TableScroll';
 import RecordCard from './UI/RecordCard';
+import { attendanceDate } from '../utils/attendanceTime';
 
 const AttendanceReports = () => {
   const [reportType, setReportType] = useState('daily');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [date, setDate] = useState(attendanceDate(new Date()));
+  const [startDate, setStartDate] = useState(attendanceDate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)));
+  const [endDate, setEndDate] = useState(attendanceDate(new Date()));
+  const [year, setYear] = useState(Number(attendanceDate(new Date()).slice(0, 4)));
+  const [month, setMonth] = useState(Number(attendanceDate(new Date()).slice(5, 7)));
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,26 +19,30 @@ const AttendanceReports = () => {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  
+
   // Rate Limiting states
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const lastFetchRef = useRef(0);
+  const requestRef = useRef(0);
 
   const token = localStorage.getItem('admin_token');
 
   const fetchReport = async () => {
-    const now = Date.now();
-    if (now - lastFetchRef.current < 300) return;
-    lastFetchRef.current = now;
-
+    const requestId = ++requestRef.current;
     setLoading(true);
+    setReportData(null);
     setError('');
-    
+    if (!token || (reportType === 'daily' && !date) ||
+        (reportType === 'weekly' && (!startDate || !endDate || startDate > endDate))) {
+      setError(!token ? 'Your session has expired. Please sign in again.' : 'Select valid dates with end date on or after start date.');
+      setLoading(false);
+      return;
+    }
+
     try {
       let url = '';
       const params = new URLSearchParams();
-      
+
       switch (reportType) {
         case 'daily':
           url = '/api/reports/daily';
@@ -63,6 +68,7 @@ const AttendanceReports = () => {
         }
       });
 
+      if (requestId !== requestRef.current) return;
       if (response.status === 429) {
         setError('Rate limit exceeded: Too many requests. Please wait a moment before trying again.');
         setReportData(null);
@@ -70,6 +76,7 @@ const AttendanceReports = () => {
       }
 
       const data = await response.json();
+      if (requestId !== requestRef.current) return;
 
       if (response.ok) {
         setReportData(data);
@@ -77,32 +84,33 @@ const AttendanceReports = () => {
         setError(data.error || 'Failed to fetch report');
       }
     } catch (err) {
-      setError('Network error. Please check your connection.');
+      if (requestId === requestRef.current) setError('Network error. Please check your connection.');
     } finally {
-      setLoading(false);
+      if (requestId === requestRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     setCurrentPage(1);
     fetchReport();
+    return () => { requestRef.current++; };
   }, [reportType, date, startDate, endDate, year, month]);
 
   const exportToPDF = () => {
-    if (!reportData || !reportData.report || isExportingPDF) return;
+    if (loading || error || !reportData || !reportData.report || isExportingPDF) return;
 
     setIsExportingPDF(true);
     setTimeout(() => setIsExportingPDF(false), 2000);
 
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape' });
     const title = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Attendance Report`;
-    
+
     doc.setFontSize(18);
     doc.text(title, 14, 22);
-    
+
     doc.setFontSize(12);
     doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 32);
-    
+
     if (reportType === 'daily') {
       doc.text(`Date: ${reportData.date}`, 14, 42);
     } else if (reportType === 'weekly' || reportType === 'monthly') {
@@ -111,35 +119,31 @@ const AttendanceReports = () => {
 
     let y = 52;
     doc.setFontSize(10);
-    
-    doc.text('Name', 14, y);
-    doc.text('Role', 60, y);
-    doc.text('Days Present', 110, y);
-    doc.text('Check-ins', 150, y);
-    doc.text('Check-outs', 190, y);
-    
-    y += 10;
-    
-    reportData.report.forEach((employee) => {
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
-      
-      doc.text(employee.name || 'N/A', 14, y);
-      doc.text(employee.role || 'N/A', 60, y);
-      doc.text(String(employee.days_present || 0), 110, y);
-      doc.text(String(employee.total_check_ins || employee.check_ins || 0), 150, y);
-      doc.text(String(employee.total_check_outs || employee.check_outs || 0), 190, y);
-      
-      y += 8;
+    const drawHeaders = () => {
+      ['Name', 'Role', 'Days Present', 'Check-ins', 'Check-outs'].forEach((label, index) => {
+        doc.text(label, [14, 88, 154, 202, 248][index], y);
+      });
+      y += 10;
+    };
+    drawHeaders();
+    reportData.report.forEach(employee => {
+      const name = doc.splitTextToSize(employee.name || 'N/A', 68);
+      const role = doc.splitTextToSize(employee.role || 'N/A', 58);
+      const height = Math.max(name.length, role.length) * 5 + 4;
+      if (y + height > 195) { doc.addPage(); y = 20; drawHeaders(); }
+      doc.text(name, 14, y);
+      doc.text(role, 88, y);
+      doc.text(String(employee.days_present || 0), 154, y);
+      doc.text(String(employee.total_check_ins ?? employee.check_ins ?? 0), 202, y);
+      doc.text(String(employee.total_check_outs ?? employee.check_outs ?? 0), 248, y);
+      y += height;
     });
 
-    doc.save(`${title}_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`${title}_${attendanceDate(new Date())}.pdf`);
   };
 
   const exportToExcel = () => {
-    if (!reportData || !reportData.report || isExportingExcel) return;
+    if (loading || error || !reportData || !reportData.report || isExportingExcel) return;
 
     setIsExportingExcel(true);
     setTimeout(() => setIsExportingExcel(false), 2000);
@@ -147,9 +151,9 @@ const AttendanceReports = () => {
     const worksheet = XLSX.utils.json_to_sheet(reportData.report);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Report');
-    
+
     const title = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Attendance Report`;
-    XLSX.writeFile(workbook, `${title}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `${title}_${attendanceDate(new Date())}.xlsx`);
   };
 
   // Pagination & Aggregation calculations
@@ -165,12 +169,12 @@ const AttendanceReports = () => {
   const totalDaysPresentAgg = reportList.reduce((acc, curr) => acc + Number(curr.days_present || 0), 0);
 
   return (
-    <div className="w-full min-w-0 bg-white rounded-xl border border-slate-100 shadow-sm space-y-4 p-3 sm:space-y-6 sm:p-6">
+    <div className="page-panel w-full min-w-0 space-y-4 p-4 sm:space-y-6 sm:p-6">
       {/* Header & Export Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <h2 className="text-lg font-bold text-slate-900 mb-1 flex flex-wrap items-center gap-2">
-            📄 Attendance Reports & Analytics
+             Attendance Reports & Analytics
             <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium border border-slate-200">
               Export Engine
             </span>
@@ -181,15 +185,15 @@ const AttendanceReports = () => {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={exportToPDF}
-            disabled={!reportData || loading || isExportingPDF}
+            disabled={!reportData || !!error || loading || isExportingPDF}
             className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5">
-            <span>📄</span> {isExportingPDF ? 'Exporting PDF...' : 'Export PDF'}
+             {isExportingPDF ? 'Exporting PDF...' : 'Export PDF'}
           </button>
           <button
             onClick={exportToExcel}
-            disabled={!reportData || loading || isExportingExcel}
+            disabled={!reportData || !!error || loading || isExportingExcel}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5">
-            <span>📊</span> {isExportingExcel ? 'Exporting Excel...' : 'Export Excel'}
+             {isExportingExcel ? 'Exporting Excel...' : 'Export Excel'}
           </button>
         </div>
       </div>
@@ -206,7 +210,7 @@ const AttendanceReports = () => {
                   ? 'bg-slate-900 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}>
-              📅 Daily Report
+               Daily Report
             </button>
             <button
               onClick={() => setReportType('weekly')}
@@ -215,7 +219,7 @@ const AttendanceReports = () => {
                   ? 'bg-slate-900 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}>
-              🗓️ Weekly Range
+               Weekly Range
             </button>
             <button
               onClick={() => setReportType('monthly')}
@@ -224,7 +228,7 @@ const AttendanceReports = () => {
                   ? 'bg-slate-900 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}>
-              📆 Monthly Summary
+               Monthly Summary
             </button>
           </div>
 
@@ -232,7 +236,7 @@ const AttendanceReports = () => {
             onClick={fetchReport}
             disabled={loading}
             className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center gap-1.5">
-            <span>🔄</span> {loading ? 'Loading...' : 'Refresh Report'}
+             {loading ? 'Loading...' : 'Refresh Report'}
           </button>
         </div>
 
@@ -273,6 +277,7 @@ const AttendanceReports = () => {
                 </label>
                 <input
                   id="endDate"
+                  min={startDate || undefined}
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
@@ -323,9 +328,7 @@ const AttendanceReports = () => {
       {reportData && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-200/60 text-slate-700 flex items-center justify-center font-bold text-base">
-              👥
-            </div>
+
             <div>
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Employees</p>
               <p className="text-xl font-extrabold text-slate-900">{totalItems}</p>
@@ -333,9 +336,7 @@ const AttendanceReports = () => {
           </div>
 
           <div className="bg-blue-50/50 border border-blue-200/60 rounded-2xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base">
-              📆
-            </div>
+
             <div>
               <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Days Present Sum</p>
               <p className="text-xl font-extrabold text-blue-900">{totalDaysPresentAgg}</p>
@@ -343,9 +344,7 @@ const AttendanceReports = () => {
           </div>
 
           <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-2xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
-              🟢
-            </div>
+
             <div>
               <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Total Check-Ins</p>
               <p className="text-xl font-extrabold text-emerald-900">{totalCheckInsAgg}</p>
@@ -353,9 +352,7 @@ const AttendanceReports = () => {
           </div>
 
           <div className="bg-rose-50/50 border border-rose-200/60 rounded-2xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-base">
-              🔴
-            </div>
+
             <div>
               <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Total Check-Outs</p>
               <p className="text-xl font-extrabold text-rose-900">{totalCheckOutsAgg}</p>
@@ -367,7 +364,7 @@ const AttendanceReports = () => {
       {/* Error Message */}
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-          <span>⚠️</span> {error}
+           {error}
         </div>
       )}
 
@@ -520,9 +517,7 @@ const AttendanceReports = () => {
           </div>
         ) : (
           <div className="py-12 flex flex-col items-center justify-center text-center">
-            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-2 text-slate-400 text-lg">
-              📄
-            </div>
+
             <p className="text-slate-500 text-xs font-semibold">No attendance report data available for selected period.</p>
           </div>
         )}

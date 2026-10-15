@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ManualAttendance from './ManualAttendance';
 
@@ -55,4 +55,19 @@ test('requires an explicit site for time-in and disables transfer without an ope
   fireEvent.click(await screen.findByRole('button', { name: 'Manage attendance' }));
   expect(screen.getByRole('radio', { name: 'Transfer site' })).toBeDisabled();
   expect(screen.getByLabelText('Assigned site')).toHaveValue('');
+});
+
+test('switching employees cannot display another employee’s late history response', async () => {
+  const histories = {};
+  vi.stubGlobal('fetch', vi.fn(url => /\/\d+$/.test(url)
+    ? new Promise(resolve => { histories[url.split('/').at(-1)] = resolve; })
+    : Promise.resolve({ ok: true, json: async () => ({ employees: [employee(null), { ...employee(null), id: 8, name: 'Taylor' }] }) })));
+  render(<ManualAttendance />);
+  await screen.findAllByRole('button', { name: 'Manage attendance' });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Manage attendance' })[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Manage attendance' }));
+  await act(async () => { histories[8]({ ok: true, json: async () => ({ logs: [{ id: 8, status: 'IN', timestamp: '2026-10-15T01:00:00Z', site_name: 'Taylor history' }] }) }); });
+  await screen.findByText(/Taylor history/);
+  await act(async () => { histories[7]({ ok: true, json: async () => ({ logs: [{ id: 7, status: 'IN', timestamp: '2026-10-15T01:00:00Z', site_name: 'Wrong Alex history' }] }) }); });
+  expect(screen.queryByText(/Wrong Alex history/)).toBeNull();
 });

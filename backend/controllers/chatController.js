@@ -42,8 +42,10 @@ const getUserRooms = async (req, res) => {
           WHERE m.room_id = r.id AND (rm.last_read_at IS NULL OR m.created_at > rm.last_read_at)
         ) as unread_count
       FROM chat_rooms r
+      WHERE r.type IN ('announcement', 'department') OR EXISTS
+        (SELECT 1 FROM chat_room_members member WHERE member.room_id = r.id AND member.member_id = ? AND member.member_type = ?)
       ORDER BY COALESCE(last_message_time, r.created_at) DESC
-    `, [userId, userType]);
+    `, [userId, userType, userId, userType]);
 
     return res.json({ success: true, rooms });
   } catch (error) {
@@ -254,7 +256,7 @@ const sendMessageToRoom = async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(`room:${roomId}`).emit('chat:new_message', newMessage);
-      io.emit('chat:room_updated', { roomId: parseInt(roomId), last_message: content, last_message_time: newMessage.created_at });
+      io.to(`room:${roomId}`).emit('chat:room_updated', { roomId: parseInt(roomId), last_message: content, last_message_time: newMessage.created_at });
     }
 
     return res.json({ success: true, message: newMessage });

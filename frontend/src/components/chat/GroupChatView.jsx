@@ -2,20 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const EMOJI_LIST = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
-const GroupChatView = ({ 
-  room, 
-  messages, 
-  currentUser, 
-  typingUser, 
-  onSendMessage, 
-  onAddReaction, 
-  onBack, 
-  socket 
+const GroupChatView = ({
+  room,
+  messages,
+  loading = false,
+  currentUser,
+  typingUser,
+  onSendMessage,
+  onAddReaction,
+  onBack,
+  socket
 }) => {
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const typingTimeout = useRef(null);
+  useEffect(() => () => clearTimeout(typingTimeout.current), []);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -29,21 +33,24 @@ const GroupChatView = ({
     setInputText(e.target.value);
     if (socket && room) {
       socket.emit('chat:typing', { roomId: room.id, userName: currentUser?.username || 'Admin' });
-      
-      clearTimeout(window.typingTimeout);
-      window.typingTimeout = setTimeout(() => {
+
+      clearTimeout(typingTimeout.current);
+      typingTimeout.current = setTimeout(() => {
         socket.emit('chat:stop_typing', { roomId: room.id, userName: currentUser?.username || 'Admin' });
       }, 2000);
     }
   };
 
-  const handleSend = () => {
-    if (!inputText.trim()) return;
-    onSendMessage({
+  const handleSend = async () => {
+    if (!inputText.trim() || isSending) return;
+    setIsSending(true);
+    let sent;
+    try { sent = await onSendMessage({
       content: inputText,
       messageType: 'text',
       replyToId: replyingTo?.id || null
-    });
+    }); } catch { sent = false; } finally { setIsSending(false); }
+    if (sent === false) return;
     setInputText('');
     setReplyingTo(null);
     setShowEmojiPicker(false);
@@ -119,7 +126,7 @@ const GroupChatView = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {onBack && (
-            <button 
+            <button
               onClick={onBack}
               style={{
                 background: 'none',
@@ -129,9 +136,7 @@ const GroupChatView = ({
                 cursor: 'pointer',
                 padding: '4px'
               }}
-            >
-              ⬅️
-            </button>
+            >Back</button>
           )}
           <div style={{
             width: '38px',
@@ -143,7 +148,7 @@ const GroupChatView = ({
             justifyContent: 'center',
             fontSize: '1.1rem'
           }}>
-            {room.avatar_url || '👥'}
+            {room.name?.slice(0, 2).toUpperCase()}
           </div>
           <div>
             <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#f8fafc' }}>{room.name}</h4>
@@ -157,9 +162,9 @@ const GroupChatView = ({
 
       {/* Messages Thread */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {messages.length === 0 ? (
+        {loading ? <p role="status">Loading messages...</p> : messages.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#64748b', margin: 'auto', fontSize: '0.85rem' }}>
-            <span>💬</span> No messages in this group yet. Start the conversation!
+             No messages in this group yet. Start the conversation!
           </div>
         ) : (
           messages.map((msg) => {
@@ -167,7 +172,7 @@ const GroupChatView = ({
                          (msg.sender_name && currentUser?.username && msg.sender_name.trim().toLowerCase() === currentUser.username.trim().toLowerCase());
 
             return (
-              <div 
+              <div
                 key={msg.id}
                 style={{
                   display: 'flex',
@@ -233,23 +238,23 @@ const GroupChatView = ({
 
                     {/* Image Attachment */}
                     {msg.message_type === 'image' && msg.attachment_url && (
-                      <img 
-                        src={msg.attachment_url} 
-                        alt="attachment" 
-                        style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', marginTop: '8px', cursor: 'pointer' }} 
+                      <img
+                        src={msg.attachment_url}
+                        alt="attachment"
+                        style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', marginTop: '8px', cursor: 'pointer' }}
                         onClick={() => window.open(msg.attachment_url, '_blank')}
                       />
                     )}
 
                     {/* File Attachment */}
                     {msg.message_type === 'file' && msg.attachment_url && (
-                      <a 
-                        href={msg.attachment_url} 
-                        target="_blank" 
-                        rel="noreferrer" 
+                      <a
+                        href={msg.attachment_url}
+                        target="_blank"
+                        rel="noreferrer"
                         style={{ color: '#38bdf8', textDecoration: 'underline', fontSize: '0.8rem', display: 'block', marginTop: '6px' }}
                       >
-                        📁 Download File
+                         Download File
                       </a>
                     )}
 
@@ -276,9 +281,9 @@ const GroupChatView = ({
                   </div>
 
                   {/* Reaction Button Trigger */}
-                  <button 
-                    onClick={() => onAddReaction(msg.id, '👍')}
-                    title="React 👍"
+                  <button
+                    onClick={() => onAddReaction(msg.id, EMOJI_LIST[0])}
+                    title="React "
                     style={{
                       background: 'none',
                       border: 'none',
@@ -290,9 +295,7 @@ const GroupChatView = ({
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
                     onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
-                  >
-                    👍
-                  </button>
+                  >Like</button>
                 </div>
 
                 {/* Timestamp */}
@@ -307,7 +310,7 @@ const GroupChatView = ({
         {/* Typing Indicator */}
         {typingUser && (
           <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>✍️</span> {typingUser} is typing...
+             {typingUser} is typing...
           </div>
         )}
 
@@ -326,7 +329,7 @@ const GroupChatView = ({
           fontSize: '0.75rem'
         }}>
           <span style={{ color: '#94a3b8' }}>Replying to: <i>{replyingTo.content.substring(0, 30)}...</i></span>
-          <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✖</button>
+          <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>Cancel reply</button>
         </div>
       )}
 
@@ -341,8 +344,8 @@ const GroupChatView = ({
           justifyContent: 'center'
         }}>
           {EMOJI_LIST.map(emoji => (
-            <span 
-              key={emoji} 
+            <span
+              key={emoji}
               onClick={() => {
                 setInputText(prev => prev + emoji);
                 setShowEmojiPicker(false);
@@ -365,15 +368,15 @@ const GroupChatView = ({
         gap: '8px'
       }}>
         {/* Hidden File Input */}
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          style={{ display: 'none' }} 
-          onChange={handleFileSelect} 
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
           accept="image/*,.pdf,.doc,.docx"
         />
 
-        <button 
+        <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
           title="Attach Image/File"
@@ -386,10 +389,10 @@ const GroupChatView = ({
             padding: '4px'
           }}
         >
-          {isUploading ? '⏳' : '📎'}
+          {isUploading ? 'Uploading' : 'Attach'}
         </button>
 
-        <button 
+        <button
           onClick={() => setShowEmojiPicker(prev => !prev)}
           title="Emoji Picker"
           style={{
@@ -400,13 +403,12 @@ const GroupChatView = ({
             cursor: 'pointer',
             padding: '4px'
           }}
-        >
-          😃
-        </button>
+        >Emoji</button>
 
-        <input 
+        <input
           type="text"
           placeholder="Type a message..."
+          disabled={isSending}
           value={inputText}
           onChange={handleInputChange}
           onKeyDown={handleKeyPress}
@@ -422,15 +424,16 @@ const GroupChatView = ({
           }}
         />
 
-        <button 
+        <button
+          aria-label="Send message"
           onClick={handleSend}
-          disabled={!inputText.trim()}
+          disabled={isSending || !inputText.trim()}
           style={{
             backgroundColor: inputText.trim() ? '#2563eb' : '#334155',
             color: '#ffffff',
             border: 'none',
-            borderRadius: '50%',
-            width: '36px',
+            borderRadius: '8px',
+            minWidth: '58px',
             height: '36px',
             display: 'flex',
             alignItems: 'center',
@@ -439,9 +442,7 @@ const GroupChatView = ({
             fontSize: '0.9rem',
             boxShadow: inputText.trim() ? '0 2px 8px rgba(37, 99, 235, 0.4)' : 'none'
           }}
-        >
-          ✈️
-        </button>
+        >{isSending ? 'Sending' : 'Send'}</button>
       </div>
     </div>
   );
